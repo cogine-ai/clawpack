@@ -1,0 +1,22 @@
+{
+  // minimal fixture shape for conservative adapter coverage
+  "agents": {
+    "supercoder": {
+      "id": "supercoder",
+      "name": "Supercoder",
+      "workspace": "/Users/example/.openclaw/workspace-supercoder",
+      "identity": {
+        "name": "Supercoder"
+      },
+      "model": {
+        "default": "openai-codex/gpt-5.4"
+      },
+      "channelBindings": {
+        "feishu": "ou_secret_binding"
+      },
+      "secrets": {
+        "token": "do-not-export"
+      }
+    }
+  }
+}
