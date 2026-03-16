@@ -1,7 +1,8 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { readFile } = require('node:fs/promises');
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+
 const projectRoot = path.resolve('.');
 
 test('package metadata is updated for clawpacker npm publishing readiness', async () => {

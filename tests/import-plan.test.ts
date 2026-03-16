@@ -1,13 +1,13 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { rm, mkdir, writeFile } = require('node:fs/promises');
-const { scanWorkspace } = require('../dist/core/workspace-scan.js');
-const { detectSkills } = require('../dist/core/skills-detect.js');
-const { extractAgentDefinition } = require('../dist/core/agent-extract.js');
-const { writePackageDirectory } = require('../dist/core/package-write.js');
-const { readPackageDirectory } = require('../dist/core/package-read.js');
-const { planImport } = require('../dist/core/import-plan.js');
+import assert from 'node:assert/strict';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+import { extractAgentDefinition } from '../src/core/agent-extract';
+import { planImport } from '../src/core/import-plan';
+import { readPackageDirectory } from '../src/core/package-read';
+import { writePackageDirectory } from '../src/core/package-write';
+import { detectSkills } from '../src/core/skills-detect';
+import { scanWorkspace } from '../src/core/workspace-scan';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
 const packageRoot = path.resolve('tests/tmp/planning-fixture.ocpkg');
@@ -77,9 +77,9 @@ test('planImport preflights target config agent-id collisions and reports safer 
       'supercoder-copy': {
         id: 'supercoder-copy',
         name: 'Existing Agent',
-        workspace: '/tmp/existing-workspace'
-      }
-    }
+        workspace: '/tmp/existing-workspace',
+      },
+    },
   }, null, 2));
 
   const blocked = await planImport({
