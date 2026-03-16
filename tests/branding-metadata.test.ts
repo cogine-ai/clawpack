@@ -10,6 +10,7 @@ test('package metadata is updated for clawpacker npm publishing readiness', asyn
 
   assert.equal(pkg.name, '@cogineai/clawpacker');
   assert.equal(pkg.bin.clawpacker, 'dist/cli.js');
+  assert.equal(pkg.scripts.prepublishOnly, 'npm run build && npm test');
   assert.equal(pkg.repository, 'https://github.com/cogine-ai/clawpack');
   assert.equal(pkg.homepage, 'https://github.com/cogine-ai/clawpack');
   assert.equal(pkg.bugs, 'https://github.com/cogine-ai/clawpack/issues');
