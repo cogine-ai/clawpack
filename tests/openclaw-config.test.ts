@@ -23,7 +23,9 @@ test('discover/load/extract reads minimal OpenClaw config fixture and returns po
   assert.equal(discovered.configPath, fixtureConfig);
 
   const loaded = await loadOpenClawConfig({ configPath: fixtureConfig });
-  assert.equal(loaded.config.agents?.supercoder?.name, 'Supercoder');
+  assert.ok(loaded.config.agents, 'agents should exist');
+  assert.ok(loaded.config.agents.supercoder, 'supercoder agent should exist');
+  assert.equal(loaded.config.agents.supercoder.name, 'Supercoder');
 
   const portable = extractPortableAgentDefinition({
     config: loaded.config,
@@ -35,7 +37,8 @@ test('discover/load/extract reads minimal OpenClaw config fixture and returns po
   assert.equal(portable.agent.suggestedId, 'supercoder');
   assert.equal(portable.agent.suggestedName, 'Supercoder');
   assert.equal(portable.agent.workspace.suggestedBasename, 'source-workspace');
-  assert.equal(portable.agent.model?.default, 'openai-codex/gpt-5.4');
+  assert.ok(portable.agent.model, 'portable agent model should exist');
+  assert.equal(portable.agent.model.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
   assert.equal(portable.fieldClassification['agent.channelBindings'], 'excluded');
 });
