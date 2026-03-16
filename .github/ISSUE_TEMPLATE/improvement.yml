@@ -1,0 +1,18 @@
+name: Improvement
+description: 现有功能改进
+labels: ["improvement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 改进内容
+      placeholder: 要改进什么？为什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 改进方案
+    validations:
+      required: false

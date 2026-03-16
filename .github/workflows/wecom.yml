@@ -1,0 +1,299 @@
+name: 企业微信通知
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+    types: [opened, synchronize, closed]
+  release:
+    types: [published]
+
+jobs:
+  notify-wecom:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      
+    - name: 发送推送通知（模板卡片）
+      if: github.event_name == 'push'
+      env:
+        WECOM_WEBHOOK: ${{ secrets.WECOM_BOT_WEBHOOK }}
+        COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        REPOSITORY: ${{ github.repository }}
+        BRANCH: ${{ github.ref_name }}
+        ACTOR: ${{ github.actor }}
+        COMMIT_URL: ${{ github.event.head_commit.url }}
+        COMPARE_URL: ${{ github.event.compare }}
+        COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+        BEFORE_SHA: ${{ github.event.before }}
+        FORCED: ${{ github.event.forced }}
+      run: |
+        if [ -z "$WECOM_WEBHOOK" ]; then
+          echo "::warning::WECOM_BOT_WEBHOOK secret is not set, skipping notification."
+          exit 0
+        fi
+        
+        SAFE_MSG=$(echo "$COMMIT_MESSAGE" | tr '\n' ' ' | cut -c1-100)
+        COMMIT_COUNT=$(echo "$COMMITS_JSON" | jq 'length')
+        
+        # 通过 git diff 计算代码变更统计（使用 push 前的 SHA 精确对比）
+        if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+          DIFF_STAT=$(git diff --shortstat "$BEFORE_SHA" HEAD 2>/dev/null || echo "")
+        else
+          DIFF_STAT=""
+        fi
+        
+        if [ -n "$DIFF_STAT" ]; then
+          FILES_CHANGED=$(echo "$DIFF_STAT" | grep -oE '[0-9]+ file' | grep -oE '[0-9]+' || echo "0")
+          INSERTIONS=$(echo "$DIFF_STAT" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
+          DELETIONS=$(echo "$DIFF_STAT" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
+        else
+          FILES_CHANGED="0"
+          INSERTIONS="0"
+          DELETIONS="0"
+        fi
+        
+        # 强推检测
+        PUSH_TITLE="🚀 代码推送"
+        SOURCE_COLOR=0
+        if [ "$FORCED" == "true" ]; then
+          PUSH_TITLE="⚠️ 强制推送"
+          SOURCE_COLOR=2
+        fi
+        
+        jq -n \
+          --arg repo "$REPOSITORY" \
+          --arg branch "$BRANCH" \
+          --arg actor "$ACTOR" \
+          --arg msg "$SAFE_MSG" \
+          --arg compare_url "$COMPARE_URL" \
+          --arg commit_url "$COMMIT_URL" \
+          --arg push_title "$PUSH_TITLE" \
+          --argjson source_color "$SOURCE_COLOR" \
+          --argjson commit_count "$COMMIT_COUNT" \
+          --arg files "$FILES_CHANGED 个文件" \
+          --arg changes "+${INSERTIONS} / -${DELETIONS}" \
+          '{
+            "msgtype": "template_card",
+            "template_card": {
+              "card_type": "text_notice",
+              "source": {
+                "desc": $repo,
+                "desc_color": $source_color
+              },
+              "main_title": {
+                "title": $push_title,
+                "desc": $msg
+              },
+              "emphasis_content": {
+                "title": ($commit_count | tostring),
+                "desc": "个提交"
+              },
+              "sub_title_text": ("分支: " + $branch),
+              "horizontal_content_list": [
+                {
+                  "keyname": "推送者",
+                  "value": $actor
+                },
+                {
+                  "keyname": "代码变更",
+                  "value": $changes
+                },
+                {
+                  "keyname": "变更文件",
+                  "value": $files
+                }
+              ],
+              "jump_list": [
+                {
+                  "type": 1,
+                  "title": "查看变更对比",
+                  "url": $compare_url
+                },
+                {
+                  "type": 1,
+                  "title": "查看最新提交",
+                  "url": $commit_url
+                }
+              ],
+              "card_action": {
+                "type": 1,
+                "url": $compare_url
+              }
+            }
+          }' | curl --fail --show-error --max-time 10 -s -X POST \
+          -H "Content-Type: application/json" \
+          -d @- \
+          "$WECOM_WEBHOOK"
+
+    - name: 发送PR合并通知（模板卡片）
+      if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+      env:
+        WECOM_WEBHOOK: ${{ secrets.WECOM_BOT_WEBHOOK }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_USER: ${{ github.event.pull_request.user.login }}
+        PR_MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        REPOSITORY: ${{ github.repository }}
+        PR_COMMITS: ${{ github.event.pull_request.commits }}
+        PR_ADDITIONS: ${{ github.event.pull_request.additions }}
+        PR_DELETIONS: ${{ github.event.pull_request.deletions }}
+        PR_CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+      run: |
+        if [ -z "$WECOM_WEBHOOK" ]; then
+          echo "::warning::WECOM_BOT_WEBHOOK secret is not set, skipping notification."
+          exit 0
+        fi
+        
+        # 处理 merged_by 可能为空的情况（squash/rebase merge）
+        if [ -z "$PR_MERGED_BY" ]; then
+          PR_MERGED_BY="$PR_USER"
+        fi
+        
+        SAFE_PR_TITLE=$(echo "$PR_TITLE" | tr '\n' ' ' | cut -c1-100)
+        
+        jq -n \
+          --arg repo "$REPOSITORY" \
+          --arg pr_title "$SAFE_PR_TITLE" \
+          --arg pr_user "$PR_USER" \
+          --arg merged_by "$PR_MERGED_BY" \
+          --arg branch "${PR_HEAD_REF} → ${PR_BASE_REF}" \
+          --arg url "$PR_URL" \
+          --arg changes "+${PR_ADDITIONS} / -${PR_DELETIONS}" \
+          --argjson commits "$PR_COMMITS" \
+          --arg files "${PR_CHANGED_FILES} 个文件" \
+          '{
+            "msgtype": "template_card",
+            "template_card": {
+              "card_type": "text_notice",
+              "source": {
+                "desc": $repo,
+                "desc_color": 3
+              },
+              "main_title": {
+                "title": "✅ 合并 Pull Request",
+                "desc": $pr_title
+              },
+              "emphasis_content": {
+                "title": $changes,
+                "desc": "代码变更"
+              },
+              "sub_title_text": $branch,
+              "horizontal_content_list": [
+                {
+                  "keyname": "创建者",
+                  "value": $pr_user
+                },
+                {
+                  "keyname": "合并者",
+                  "value": $merged_by
+                },
+                {
+                  "keyname": "提交数",
+                  "value": (($commits | tostring) + " 个提交")
+                },
+                {
+                  "keyname": "变更文件",
+                  "value": $files
+                }
+              ],
+              "jump_list": [
+                {
+                  "type": 1,
+                  "title": "查看 Pull Request",
+                  "url": $url
+                }
+              ],
+              "card_action": {
+                "type": 1,
+                "url": $url
+              }
+            }
+          }' | curl --fail --show-error --max-time 10 -s -X POST \
+          -H "Content-Type: application/json" \
+          -d @- \
+          "$WECOM_WEBHOOK"
+
+    - name: 发送PR通知（Markdown）
+      if: github.event_name == 'pull_request' && !(github.event.action == 'closed' && github.event.pull_request.merged == true)
+      env:
+        WECOM_WEBHOOK: ${{ secrets.WECOM_BOT_WEBHOOK }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_USER: ${{ github.event.pull_request.user.login }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        REPOSITORY: ${{ github.repository }}
+        PR_ACTION: ${{ github.event.action }}
+        PR_MERGED: ${{ github.event.pull_request.merged }}
+      run: |
+        if [ -z "$WECOM_WEBHOOK" ]; then
+          echo "::warning::WECOM_BOT_WEBHOOK secret is not set (possibly a fork PR), skipping notification."
+          exit 0
+        fi
+        
+        SAFE_PR_TITLE=$(echo "$PR_TITLE" | tr '\n' ' ' | cut -c1-200)
+        
+        ACTION_TEXT=""
+        if [ "$PR_ACTION" == "opened" ]; then
+          ACTION_TEXT="🔄 新建 Pull Request"
+        elif [ "$PR_ACTION" == "synchronize" ]; then
+          ACTION_TEXT="🔄 更新 Pull Request"
+        elif [ "$PR_ACTION" == "closed" ]; then
+          ACTION_TEXT="❌ 关闭 Pull Request"
+        fi
+        
+        jq -n \
+          --arg title "$ACTION_TEXT" \
+          --arg repo "$REPOSITORY" \
+          --arg branch "$PR_HEAD_REF → $PR_BASE_REF" \
+          --arg user "$PR_USER" \
+          --arg pr_title "$SAFE_PR_TITLE" \
+          --arg url "$PR_URL" \
+          '{
+            "msgtype": "markdown",
+            "markdown": {
+              "content": "# \($title)\n> **仓库**: \($repo)\n> **分支**: \($branch)\n> **创建者**: \($user)\n> **标题**: \($pr_title)\n>\n> [🔗 查看详情](\($url))"
+            }
+          }' | curl --fail --show-error --max-time 10 -s -X POST \
+          -H "Content-Type: application/json" \
+          -d @- \
+          "$WECOM_WEBHOOK"
+          
+    - name: 发送发布通知
+      if: github.event_name == 'release'
+      env:
+        WECOM_WEBHOOK: ${{ secrets.WECOM_BOT_WEBHOOK }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+        RELEASE_NAME: ${{ github.event.release.name }}
+        RELEASE_URL: ${{ github.event.release.html_url }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        if [ -z "$WECOM_WEBHOOK" ]; then
+          echo "::warning::WECOM_BOT_WEBHOOK secret is not set, skipping notification."
+          exit 0
+        fi
+        
+        SAFE_RELEASE_NAME=$(echo "$RELEASE_NAME" | tr '\n' ' ' | cut -c1-200)
+        
+        jq -n \
+          --arg repo "$REPOSITORY" \
+          --arg tag "$RELEASE_TAG" \
+          --arg name "$SAFE_RELEASE_NAME" \
+          --arg url "$RELEASE_URL" \
+          '{
+            "msgtype": "markdown",
+            "markdown": {
+              "content": "# 🎉 新版本发布\n> **仓库**: \($repo)\n> **版本**: \($tag)\n> **发布说明**: \($name)\n>\n> [🔗 查看详情](\($url))"
+            }
+          }' | curl --fail --show-error --max-time 10 -s -X POST \
+          -H "Content-Type: application/json" \
+          -d @- \
+          "$WECOM_WEBHOOK"

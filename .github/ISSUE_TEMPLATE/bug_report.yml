@@ -1,0 +1,26 @@
+name: Bug
+description: 报告问题或错误
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      placeholder: 发生了什么？如何复现？
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 日志、截图、相关代码位置等
+    validations:
+      required: false

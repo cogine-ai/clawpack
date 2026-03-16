@@ -1,0 +1,27 @@
+name: Feature
+description: 新功能开发
+labels: ["feature"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 功能描述
+      placeholder: 要实现什么功能？
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 实现方案
+      description: 技术方案或思路
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关代码
+      placeholder: src/lib/...
+    validations:
+      required: false
