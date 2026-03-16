@@ -9,7 +9,7 @@ import { registerValidateCommand } from './commands/validate';
 const program = new Command();
 
 program
-  .name('clawpack')
+  .name('clawpacker')
   .description('Export, import, and validate portable OpenClaw agent/workspace templates.')
   .version('0.1.0');
 

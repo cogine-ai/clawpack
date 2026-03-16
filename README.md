@@ -1,14 +1,14 @@
-# Clawpack
+# Clawpacker
 
 > Portable OpenClaw agent/workspace templates for sharing, cloning, and rehydrating on another instance.
 
-Clawpack is a small TypeScript CLI for exporting the portable parts of an OpenClaw agent workspace into a declarative package, then importing that package into another OpenClaw setup.
+Clawpacker is a small TypeScript CLI for exporting the portable parts of an OpenClaw agent workspace into a declarative package, then importing that package into another OpenClaw setup.
 
 ## Why this exists
 
 OpenClaw agents often live inside a workspace with persona files, conventions, and a bit of agent config glue. Recreating that setup by hand is annoying, error-prone, and easy to drift.
 
-Clawpack focuses on the reusable part of that problem:
+Clawpacker focuses on the reusable part of that problem:
 
 - capture the workspace files that define an agent's behavior
 - extract a portable slice of agent config
@@ -29,11 +29,11 @@ Use it when you want to:
 
 Do **not** treat it as a production-grade backup, archival, or disaster-recovery tool yet.
 
-## What Clawpack does in v1
+## What Clawpacker does in v1
 
 ### Included
 
-By default, Clawpack exports the portable workspace files:
+By default, Clawpacker exports the portable workspace files:
 
 - `AGENTS.md`
 - `SOUL.md`
@@ -54,7 +54,7 @@ It also writes package metadata:
 
 ### Excluded
 
-Clawpack intentionally excludes or avoids restoring:
+Clawpacker intentionally excludes or avoids restoring:
 
 - `memory/*.md` daily logs
 - secrets, auth state, cookies, API keys, credentials
@@ -67,9 +67,16 @@ Clawpack intentionally excludes or avoids restoring:
 
 Skills are **manifest-only** right now.
 
-That means Clawpack records detected skill references, but it does not bundle or install skill implementations for you.
+That means Clawpacker records detected skill references, but it does not bundle or install skill implementations for you.
 
 ## Install
+
+### Published package
+
+```bash
+npm install -g clawpacker
+clawpacker --help
+```
 
 ### From source
 
@@ -97,13 +104,13 @@ After building, the CLI exposes four commands:
 - `import` — restore a package into a target workspace
 - `validate` — verify an imported workspace target
 
-If this project is later published as a package, the intended command name is:
+If you install the published package, the CLI command is:
 
 ```bash
-clawpack
+clawpacker
 ```
 
-Until then, use:
+For local source usage, you can still run:
 
 ```bash
 node dist/cli.js
@@ -194,9 +201,9 @@ Current output is a JSON validation report with:
 
 ## OpenClaw config awareness
 
-Clawpack is OpenClaw-aware, but intentionally narrow.
+Clawpacker is OpenClaw-aware, but intentionally narrow.
 
-When you provide `--config`, or when import can discover a nearby OpenClaw config, Clawpack can:
+When you provide `--config`, or when import can discover a nearby OpenClaw config, Clawpacker can:
 
 - derive a portable agent definition from an existing config entry
 - classify config fields as portable, excluded, or requiring import-time input
@@ -205,7 +212,7 @@ When you provide `--config`, or when import can discover a nearby OpenClaw confi
 
 ### Config discovery behavior
 
-If you do not pass `--config`, Clawpack looks for a config in these places:
+If you do not pass `--config`, Clawpacker looks for a config in these places:
 
 - `./openclaw-config.json`
 - `./openclaw-config.jsonc`
@@ -214,7 +221,7 @@ If you do not pass `--config`, Clawpack looks for a config in these places:
 
 ### Portable config philosophy
 
-Clawpack does **not** export raw OpenClaw config wholesale.
+Clawpacker does **not** export raw OpenClaw config wholesale.
 
 Instead, it extracts a minimal, portable slice, such as:
 
@@ -232,7 +239,7 @@ And it explicitly excludes things like:
 
 ## Safety model
 
-Clawpack is designed to be conservative.
+Clawpacker is designed to be conservative.
 
 ### Export safety
 
@@ -352,14 +359,14 @@ npm test
 
 ## Naming
 
-This repository is being renamed from the placeholder working title `clawpack` to **Clawpack**.
+The npm package name is **`clawpacker`** while the GitHub repository remains **`cogine-ai/clawpack`**.
 
-Why this name:
+Why this naming split:
 
 - short and memorable
 - feels native to the OpenClaw ecosystem
 - communicates portability/transport clearly
-- works as both project name and CLI command
+- keeps the repository path stable while making the published package name explicit
 
 ---
 
