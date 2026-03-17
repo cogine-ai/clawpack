@@ -1,11 +1,11 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { scanWorkspace } = require('../dist/core/workspace-scan.js');
-const { detectSkills } = require('../dist/core/skills-detect.js');
-const { extractAgentDefinition } = require('../dist/core/agent-extract.js');
-const { checksumText } = require('../dist/core/checksums.js');
-const { buildManifest, buildExportReport } = require('../dist/core/manifest.js');
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import test from 'node:test';
+import { extractAgentDefinition } from '../src/core/agent-extract';
+import { checksumText } from '../src/core/checksums';
+import { buildExportReport, buildManifest } from '../src/core/manifest';
+import { detectSkills } from '../src/core/skills-detect';
+import { scanWorkspace } from '../src/core/workspace-scan';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
 

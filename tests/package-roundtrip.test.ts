@@ -1,20 +1,18 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { existsSync } = require('node:fs');
-const { readFile, rm } = require('node:fs/promises');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
-const { readPackageDirectory } = require('../dist/core/package-read.js');
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+import { readPackageDirectory } from '../src/core/package-read';
+import { runCli } from './helpers/run-cli';
 
-const execFileAsync = promisify(execFile);
 const fixture = path.resolve('tests/fixtures/source-workspace');
 const outputRoot = path.resolve('tests/tmp/exported-fixture.ocpkg');
 const targetRoot = path.resolve('tests/tmp/roundtrip-target/workspace-supercoder-copy');
 
 test('export command writes package directory structure and excludes daily memory', async () => {
   await rm(outputRoot, { recursive: true, force: true });
-  await execFileAsync('node', ['dist/cli.js', 'export', '--workspace', fixture, '--out', outputRoot]);
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
 
   for (const requiredPath of [
     'manifest.json',
@@ -36,7 +34,7 @@ test('export command writes package directory structure and excludes daily memor
 
 test('package reader opens a valid exported package and verifies checksums', async () => {
   await rm(outputRoot, { recursive: true, force: true });
-  await execFileAsync('node', ['dist/cli.js', 'export', '--workspace', fixture, '--out', outputRoot]);
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
 
   const pkg = await readPackageDirectory(outputRoot);
   assert.equal(pkg.manifest.packageType, 'openclaw-agent-template');
@@ -48,13 +46,13 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
   await rm(outputRoot, { recursive: true, force: true });
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
 
-  await execFileAsync('node', ['dist/cli.js', 'export', '--workspace', fixture, '--out', outputRoot]);
-  await execFileAsync('node', ['dist/cli.js', 'import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
-  const { stdout } = await execFileAsync('node', ['dist/cli.js', 'validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
+  await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
 
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
-  assert.ok(report.warnings.some((warning) => warning.includes('Skills are manifest-only')));
-  assert.ok(report.nextSteps.some((step) => step.includes('Channel bindings')));
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
+  assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
   assert.equal(existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')), true);
 });
