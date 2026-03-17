@@ -1,6 +1,6 @@
-import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFile } from '../utils/json';
+import { pathExists } from '../utils/fs';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
 import { loadOpenClawConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
@@ -92,13 +92,4 @@ export async function validateImportedWorkspace(params: {
   );
 
   return report;
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
