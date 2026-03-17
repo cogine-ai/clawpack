@@ -5,7 +5,7 @@ import { registerExportCommand } from './commands/export';
 import { registerImportCommand } from './commands/import';
 import { registerInspectCommand } from './commands/inspect';
 import { registerValidateCommand } from './commands/validate';
-import { isRenderableCliError } from './commands/import';
+import { isRenderableCliError } from './renderable-cli-error';
 
 const program = new Command();
 

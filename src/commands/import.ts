@@ -5,6 +5,7 @@ import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { planImport } from '../core/import-plan';
 import { readPackageDirectory } from '../core/package-read';
 import type { ImportPlan } from '../core/types';
+import { renderableCliErrorBrand, type RenderableCliError } from '../renderable-cli-error';
 
 interface ImportOptions {
   targetWorkspace: string;
@@ -12,10 +13,6 @@ interface ImportOptions {
   config?: string;
   force?: boolean;
   json?: boolean;
-}
-
-export interface RenderableCliError {
-  render(): string;
 }
 
 interface BlockedImportReport extends Pick<
@@ -26,6 +23,8 @@ interface BlockedImportReport extends Pick<
 }
 
 class ImportBlockedError extends Error implements RenderableCliError {
+  readonly [renderableCliErrorBrand] = true;
+
   constructor(
     readonly report: BlockedImportReport,
     private readonly asJson: boolean,
@@ -96,14 +95,6 @@ function formatBlockedImportReport(report: BlockedImportReport): string {
 
   return lines.join('\n');
 }
-
-export function isRenderableCliError(error: unknown): error is RenderableCliError {
-  return typeof error === 'object'
-    && error !== null
-    && 'render' in error
-    && typeof (error as RenderableCliError).render === 'function';
-}
-
 export async function runImport(packagePath: string, options: ImportOptions): Promise<void> {
   if (!packagePath || !options.targetWorkspace) {
     throw new Error('import requires <package-path> and --target-workspace <path>');

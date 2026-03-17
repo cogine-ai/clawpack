@@ -37,9 +37,21 @@ async function runCliFailure(args: string[]) {
     await runCli(args);
     assert.fail(`Expected CLI invocation to fail: ${args.join(' ')}`);
   } catch (error) {
+    if (error instanceof assert.AssertionError) {
+      throw error;
+    }
+
     return error as NodeJS.ErrnoException & { stdout: string; stderr: string; code: number };
   }
 }
+
+test('runCliFailure rethrows assertion failures when the CLI succeeds', async () => {
+  await assert.rejects(
+    async () => runCliFailure(['--version']),
+    (error: unknown) => error instanceof assert.AssertionError
+      && /Expected CLI invocation to fail: --version/.test(error.message),
+  );
+});
 
 test('blocked import prints clean human-readable output and exits non-zero', async () => {
   await prepareBlockedImportFixture();
