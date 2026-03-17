@@ -1,7 +1,8 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { readFile } = require('node:fs/promises');
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+
 const projectRoot = path.resolve('.');
 
 test('package metadata is updated for clawpacker npm publishing readiness', async () => {
@@ -9,6 +10,7 @@ test('package metadata is updated for clawpacker npm publishing readiness', asyn
 
   assert.equal(pkg.name, '@cogineai/clawpacker');
   assert.equal(pkg.bin.clawpacker, 'dist/cli.js');
+  assert.equal(pkg.scripts.prepublishOnly, 'npm run build && npm test');
   assert.equal(pkg.repository, 'https://github.com/cogine-ai/clawpack');
   assert.equal(pkg.homepage, 'https://github.com/cogine-ai/clawpack');
   assert.equal(pkg.bugs, 'https://github.com/cogine-ai/clawpack/issues');

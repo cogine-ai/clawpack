@@ -1,17 +1,15 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { readFile, rm, mkdir } = require('node:fs/promises');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
-const {
+import assert from 'node:assert/strict';
+import { mkdir, readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+import {
   discoverOpenClawConfig,
-  loadOpenClawConfig,
   extractPortableAgentDefinition,
+  loadOpenClawConfig,
   upsertPortableAgentDefinition,
-} = require('../dist/core/openclaw-config.js');
+} from '../src/core/openclaw-config';
+import { runCli } from './helpers/run-cli';
 
-const execFileAsync = promisify(execFile);
 const fixtureConfig = path.resolve('tests/fixtures/openclaw-config/source-config.jsonc');
 const fixtureWorkspace = path.resolve('tests/fixtures/source-workspace');
 const inspectTarget = path.resolve('tests/tmp/inspect-output.json');
@@ -20,12 +18,13 @@ const importWorkspace = path.join(importTargetRoot, 'workspace-supercoder-import
 const importConfig = path.join(importTargetRoot, 'openclaw-config.json');
 const exportOut = path.resolve('tests/tmp/config-backed-export.ocpkg');
 
-
 test('discover/load/extract reads minimal OpenClaw config fixture and returns portable agent slice', async () => {
   const discovered = await discoverOpenClawConfig({ configPath: fixtureConfig });
   assert.equal(discovered.configPath, fixtureConfig);
 
   const loaded = await loadOpenClawConfig({ configPath: fixtureConfig });
+  assert.ok(loaded.config.agents, 'agents should exist');
+  assert.ok(loaded.config.agents.supercoder, 'supercoder agent should exist');
   assert.equal(loaded.config.agents.supercoder.name, 'Supercoder');
 
   const portable = extractPortableAgentDefinition({
@@ -38,11 +37,11 @@ test('discover/load/extract reads minimal OpenClaw config fixture and returns po
   assert.equal(portable.agent.suggestedId, 'supercoder');
   assert.equal(portable.agent.suggestedName, 'Supercoder');
   assert.equal(portable.agent.workspace.suggestedBasename, 'source-workspace');
+  assert.ok(portable.agent.model, 'portable agent model should exist');
   assert.equal(portable.agent.model.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
   assert.equal(portable.fieldClassification['agent.channelBindings'], 'excluded');
 });
-
 
 test('upsertPortableAgentDefinition writes a scoped portable agent entry into target config', async () => {
   await rm(importTargetRoot, { recursive: true, force: true });
@@ -82,12 +81,10 @@ test('upsertPortableAgentDefinition writes a scoped portable agent entry into ta
   assert.equal(written.agents['supercoder-imported'].channelBindings, undefined);
 });
 
-
 test('inspect command defaults to human-readable output and supports --json', async () => {
   await rm(inspectTarget, { force: true });
 
-  const human = await execFileAsync('node', [
-    'dist/cli.js',
+  const human = await runCli([
     'inspect',
     '--workspace', fixtureWorkspace,
     '--config', fixtureConfig,
@@ -100,8 +97,7 @@ test('inspect command defaults to human-readable output and supports --json', as
   assert.match(human.stdout, /Warnings:/);
   assert.equal(human.stdout.includes('{\n  "workspacePath"'), false);
 
-  const json = await execFileAsync('node', [
-    'dist/cli.js',
+  const json = await runCli([
     'inspect',
     '--workspace', fixtureWorkspace,
     '--config', fixtureConfig,
@@ -112,21 +108,19 @@ test('inspect command defaults to human-readable output and supports --json', as
   const report = JSON.parse(json.stdout);
   assert.equal(report.workspacePath, fixtureWorkspace);
   assert.ok(report.includedFiles.includes('AGENTS.md'));
-  assert.ok(report.excludedFiles.some((entry) => entry.relativePath === 'memory/2026-03-16.md'));
+  assert.ok(report.excludedFiles.some((entry: { relativePath: string }) => entry.relativePath === 'memory/2026-03-16.md'));
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
   assert.ok(report.skills.referencedSkills.includes('github'));
-  assert.ok(report.warnings.some((warning) => warning.includes('Channel bindings')));
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
 });
-
 
 test('export/import/validate uses fixture config and persists agent into target OpenClaw config', async () => {
   await rm(exportOut, { recursive: true, force: true });
   await rm(importTargetRoot, { recursive: true, force: true });
   await mkdir(importTargetRoot, { recursive: true });
 
-  await execFileAsync('node', [
-    'dist/cli.js',
+  await runCli([
     'export',
     '--workspace', fixtureWorkspace,
     '--config', fixtureConfig,
@@ -136,10 +130,9 @@ test('export/import/validate uses fixture config and persists agent into target 
 
   const agentJson = JSON.parse(await readFile(path.join(exportOut, 'config', 'agent.json'), 'utf8'));
   assert.equal(agentJson.agent.model.default, 'openai-codex/gpt-5.4');
-  assert.ok(agentJson.notes.some((note) => note.includes('OpenClaw config')));
+  assert.ok(agentJson.notes.some((note: string) => note.includes('OpenClaw config')));
 
-  await execFileAsync('node', [
-    'dist/cli.js',
+  await runCli([
     'import',
     exportOut,
     '--target-workspace', importWorkspace,
@@ -150,8 +143,7 @@ test('export/import/validate uses fixture config and persists agent into target 
   const importedConfig = JSON.parse(await readFile(importConfig, 'utf8'));
   assert.equal(importedConfig.agents['supercoder-imported'].workspace, importWorkspace);
 
-  const { stdout } = await execFileAsync('node', [
-    'dist/cli.js',
+  const { stdout } = await runCli([
     'validate',
     '--target-workspace', importWorkspace,
     '--agent-id', 'supercoder-imported',

@@ -1,7 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { scanWorkspace } = require('../dist/core/workspace-scan.js');
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import test from 'node:test';
+import { scanWorkspace } from '../src/core/workspace-scan';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
 
