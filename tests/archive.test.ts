@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, rm, stat } from 'node:fs/promises';
+import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { readPackage, readPackageDirectory } from '../src/core/package-read';
+import { cleanupTempDir } from '../src/core/archive';
+import { readPackage } from '../src/core/package-read';
 import { runCli } from './helpers/run-cli';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
@@ -50,7 +51,6 @@ test('readPackage detects and extracts .tar.gz archive', async () => {
   assert.ok(pkg.workspaceFiles.length >= 6, 'should have at least 6 workspace files');
   assert.ok(pkg.checksums['config/agent.json'].length === 64, 'checksum should be SHA-256');
 
-  const { cleanupTempDir } = await import('../src/core/archive');
   await cleanupTempDir(capturedTempDir);
 });
 
@@ -112,7 +112,7 @@ test('export without --archive still produces directory format (backward compat)
   assert.equal(existsSync(path.join(dirOutput, 'workspace', 'AGENTS.md')), true);
 });
 
-test('archive temp directory is cleaned up after import', async () => {
+test('archive import via CLI succeeds end-to-end', async () => {
   await rm(archiveOutput, { force: true });
   await rm(archiveImportTarget, { recursive: true, force: true });
   await rm(path.dirname(archiveImportTarget), { recursive: true, force: true });

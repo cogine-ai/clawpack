@@ -1,4 +1,4 @@
-import { access, stat } from 'node:fs/promises';
+import { access, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanupTempDir, extractArchive, isArchivePath } from './archive';
 import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
@@ -34,7 +34,6 @@ export async function readPackage(
 }
 
 async function findPackageRoot(extractedDir: string): Promise<string> {
-  const { readdir } = await import('node:fs/promises');
   const entries = await readdir(extractedDir);
   if (entries.length === 1) {
     const candidate = path.join(extractedDir, entries[0]);

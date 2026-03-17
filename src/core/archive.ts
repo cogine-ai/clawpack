@@ -32,10 +32,15 @@ export async function createArchive(sourceDir: string, archivePath: string): Pro
 export async function extractArchive(archivePath: string): Promise<string> {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'clawpacker-'));
 
-  await tar.extract({
-    file: archivePath,
-    cwd: tempDir,
-  });
+  try {
+    await tar.extract({
+      file: archivePath,
+      cwd: tempDir,
+    });
+  } catch (error) {
+    await rm(tempDir, { recursive: true, force: true });
+    throw error;
+  }
 
   return tempDir;
 }

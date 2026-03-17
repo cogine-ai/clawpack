@@ -101,11 +101,12 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
   }
 
   let tempDir: string | undefined;
-  const pkg = await readPackage(path.resolve(packagePath), {
-    onTempDir(dir) { tempDir = dir; },
-  });
 
   try {
+    const pkg = await readPackage(path.resolve(packagePath), {
+      onTempDir(dir) { tempDir = dir; },
+    });
+
     const configPath = options.config
       ? path.resolve(options.config)
       : (await discoverOpenClawConfig({ cwd: path.resolve(options.targetWorkspace) }).catch(() => undefined))?.configPath;
