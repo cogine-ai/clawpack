@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { readFile, rm, mkdir } = require('node:fs/promises');
+const { readFile, rm, mkdir, writeFile } = require('node:fs/promises');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const {
@@ -19,6 +19,14 @@ const importTargetRoot = path.resolve('tests/tmp/config-import-target');
 const importWorkspace = path.join(importTargetRoot, 'workspace-supercoder-imported');
 const importConfig = path.join(importTargetRoot, 'openclaw-config.json');
 const exportOut = path.resolve('tests/tmp/config-backed-export.ocpkg');
+const parserFixtureRoot = path.resolve('tests/tmp/openclaw-config-parser');
+
+async function writeJsoncFixture(filename, contents) {
+  await mkdir(parserFixtureRoot, { recursive: true });
+  const configPath = path.join(parserFixtureRoot, filename);
+  await writeFile(configPath, contents, 'utf8');
+  return configPath;
+}
 
 
 test('discover/load/extract reads minimal OpenClaw config fixture and returns portable agent slice', async () => {
@@ -41,6 +49,50 @@ test('discover/load/extract reads minimal OpenClaw config fixture and returns po
   assert.equal(portable.agent.model.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
   assert.equal(portable.fieldClassification['agent.channelBindings'], 'excluded');
+});
+
+test('loadOpenClawConfig preserves // inside JSON string values', async () => {
+  const configPath = await writeJsoncFixture('string-line-comment-token.jsonc', `{
+  "agents": {
+    "supercoder": {
+      "name": "https://example.com//agents/supercoder"
+    }
+  }
+}
+`);
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  assert.equal(loaded.config.agents.supercoder.name, 'https://example.com//agents/supercoder');
+});
+
+test('loadOpenClawConfig preserves /* */ inside JSON string values', async () => {
+  const configPath = await writeJsoncFixture('string-block-comment-token.jsonc', `{
+  "agents": {
+    "supercoder": {
+      "name": "literal /* not a comment */ value"
+    }
+  }
+}
+`);
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  assert.equal(loaded.config.agents.supercoder.name, 'literal /* not a comment */ value');
+});
+
+test('loadOpenClawConfig still accepts real JSONC line and block comments', async () => {
+  const configPath = await writeJsoncFixture('actual-comments.jsonc', `{
+  // agent catalog
+  "agents": {
+    /* exported agent */
+    "supercoder": {
+      "name": "Supercoder"
+    }
+  }
+}
+`);
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  assert.equal(loaded.config.agents.supercoder.name, 'Supercoder');
 });
 
 

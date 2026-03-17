@@ -2,6 +2,7 @@ import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentDefinition } from './types';
 import { readFile, writeFile } from 'node:fs/promises';
+import stripJsonComments from 'strip-json-comments';
 
 export interface MinimalOpenClawConfig {
   agents?: Record<string, {
@@ -136,9 +137,7 @@ export async function upsertPortableAgentDefinition(params: {
 }
 
 function parseJsonc(value: string): unknown {
-  const withoutComments = value
-    .replace(/^\s*\/\/.*$/gm, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const withoutComments = stripJsonComments(value);
   return JSON.parse(withoutComments);
 }
 
