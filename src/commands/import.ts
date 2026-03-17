@@ -3,7 +3,7 @@ import type { Command } from 'commander';
 import { executeImport } from '../core/import-exec';
 import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { planImport } from '../core/import-plan';
-import { readPackageDirectory } from '../core/package-read';
+import { cleanupTempDir, readPackage } from '../core/package-read';
 import type { ImportPlan } from '../core/types';
 import { renderableCliErrorBrand, type RenderableCliError } from '../renderable-cli-error';
 import { pushSection } from '../utils/output';
@@ -93,49 +93,60 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
     throw new Error('import requires <package-path> and --target-workspace <path>');
   }
 
-  const pkg = await readPackageDirectory(path.resolve(packagePath));
-  const configPath = options.config
-    ? path.resolve(options.config)
-    : (await discoverOpenClawConfig({ cwd: path.resolve(options.targetWorkspace) }).catch(() => undefined))?.configPath;
+  let tempDir: string | undefined;
 
-  const plan = await planImport({
-    pkg,
-    targetWorkspacePath: path.resolve(options.targetWorkspace),
-    targetAgentId: options.agentId,
-    targetConfigPath: configPath,
-    force: options.force,
-  });
+  try {
+    const pkg = await readPackage(path.resolve(packagePath), {
+      onTempDir(dir) { tempDir = dir; },
+    });
 
-  if (!plan.canProceed) {
-    throw new ImportBlockedError({
-      status: 'blocked',
-      failed: plan.failed,
-      requiredInputs: plan.requiredInputs,
-      warnings: plan.warnings,
-      nextSteps: plan.nextSteps,
-      writePlan: plan.writePlan,
-    }, options.json === true);
+    const configPath = options.config
+      ? path.resolve(options.config)
+      : (await discoverOpenClawConfig({ cwd: path.resolve(options.targetWorkspace) }).catch(() => undefined))?.configPath;
+
+    const plan = await planImport({
+      pkg,
+      targetWorkspacePath: path.resolve(options.targetWorkspace),
+      targetAgentId: options.agentId,
+      targetConfigPath: configPath,
+      force: options.force,
+    });
+
+    if (!plan.canProceed) {
+      throw new ImportBlockedError({
+        status: 'blocked',
+        failed: plan.failed,
+        requiredInputs: plan.requiredInputs,
+        warnings: plan.warnings,
+        nextSteps: plan.nextSteps,
+        writePlan: plan.writePlan,
+      }, options.json === true);
+    }
+
+    const result = await executeImport({ pkg, plan });
+
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    const lines = [
+      'Import complete',
+      `  Workspace: ${result.targetWorkspacePath}`,
+      `  Agent id: ${result.agentId}`,
+      `  Imported files: ${result.importedFiles.length}`,
+      `  Metadata files: ${result.metadataFiles.length}`,
+    ];
+
+    pushSection(lines, 'Warnings', result.warnings);
+    pushSection(lines, 'Next steps', result.nextSteps);
+
+    console.log(lines.join('\n'));
+  } finally {
+    if (tempDir) {
+      await cleanupTempDir(tempDir);
+    }
   }
-
-  const result = await executeImport({ pkg, plan });
-
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  const lines = [
-    'Import complete',
-    `  Workspace: ${result.targetWorkspacePath}`,
-    `  Agent id: ${result.agentId}`,
-    `  Imported files: ${result.importedFiles.length}`,
-    `  Metadata files: ${result.metadataFiles.length}`,
-  ];
-
-  pushSection(lines, 'Warnings', result.warnings);
-  pushSection(lines, 'Next steps', result.nextSteps);
-
-  console.log(lines.join('\n'));
 }
 
 export function registerImportCommand(command: Command): void {

@@ -1,8 +1,37 @@
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createArchive, deriveArchivePath } from './archive';
 import { checksumFile, checksumText } from './checksums';
 import { buildExportArtifacts } from './manifest';
 import type { AgentDefinition, ExportPackageResult, ImportHints, SkillsManifest, WorkspaceScanResult } from './types';
+
+export async function writePackageArchive(params: {
+  outputPath: string;
+  packageName: string;
+  scan: WorkspaceScanResult;
+  skills: SkillsManifest;
+  agentDefinition: AgentDefinition;
+}): Promise<ExportPackageResult> {
+  const archivePath = deriveArchivePath(params.outputPath);
+  const stagingDir = `${params.outputPath}.staging`;
+
+  try {
+    const dirResult = await writePackageDirectory({
+      ...params,
+      outputPath: stagingDir,
+    });
+
+    await createArchive(stagingDir, archivePath);
+
+    return {
+      packageRoot: archivePath,
+      manifestPath: dirResult.manifestPath,
+      fileCount: dirResult.fileCount,
+    };
+  } finally {
+    await rm(stagingDir, { recursive: true, force: true });
+  }
+}
 
 export async function writePackageDirectory(params: {
   outputPath: string;
