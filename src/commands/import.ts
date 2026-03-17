@@ -6,6 +6,7 @@ import { planImport } from '../core/import-plan';
 import { readPackageDirectory } from '../core/package-read';
 import type { ImportPlan } from '../core/types';
 import { renderableCliErrorBrand, type RenderableCliError } from '../renderable-cli-error';
+import { pushSection } from '../utils/output';
 
 interface ImportOptions {
   targetWorkspace: string;
@@ -50,14 +51,6 @@ function formatRequiredInputKey(key: BlockedImportReport['requiredInputs'][numbe
   }
 
   return key;
-}
-
-function pushSection(lines: string[], heading: string, items: string[]): void {
-  if (items.length === 0) {
-    return;
-  }
-
-  lines.push('', `${heading}:`, ...items.map((item) => `- ${item}`));
 }
 
 function formatBlockedImportReport(report: BlockedImportReport): string {
@@ -125,7 +118,24 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
   }
 
   const result = await executeImport({ pkg, plan });
-  console.log(JSON.stringify(result, null, 2));
+
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  const lines = [
+    'Import complete',
+    `  Workspace: ${result.targetWorkspacePath}`,
+    `  Agent id: ${result.agentId}`,
+    `  Imported files: ${result.importedFiles.length}`,
+    `  Metadata files: ${result.metadataFiles.length}`,
+  ];
+
+  pushSection(lines, 'Warnings', result.warnings);
+  pushSection(lines, 'Next steps', result.nextSteps);
+
+  console.log(lines.join('\n'));
 }
 
 export function registerImportCommand(command: Command): void {
@@ -136,6 +146,6 @@ export function registerImportCommand(command: Command): void {
     .option('--agent-id <id>', 'Target agent id override')
     .option('--config <path>', 'Target OpenClaw config path')
     .option('--force', 'Overwrite an existing target workspace')
-    .option('--json', 'Emit blocked import details as JSON on failure')
+    .option('--json', 'Emit the full machine-readable JSON report')
     .action(runImport);
 }

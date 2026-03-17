@@ -11,6 +11,7 @@ interface ExportOptions {
   name?: string;
   config?: string;
   agentId?: string;
+  json?: boolean;
 }
 
 export async function runExport(options: ExportOptions): Promise<void> {
@@ -34,18 +35,24 @@ export async function runExport(options: ExportOptions): Promise<void> {
     agentDefinition,
   });
 
-  console.log(
-    JSON.stringify(
-      {
-        status: 'ok',
-        packageRoot: result.packageRoot,
-        manifestPath: result.manifestPath,
-        fileCount: result.fileCount,
-      },
-      null,
-      2,
-    ),
-  );
+  const report = {
+    status: 'ok' as const,
+    packageRoot: result.packageRoot,
+    manifestPath: result.manifestPath,
+    fileCount: result.fileCount,
+  };
+
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  console.log([
+    'Export complete',
+    `  Package: ${report.packageRoot}`,
+    `  Manifest: ${report.manifestPath}`,
+    `  Files: ${report.fileCount}`,
+  ].join('\n'));
 }
 
 export function registerExportCommand(command: Command): void {
@@ -56,5 +63,6 @@ export function registerExportCommand(command: Command): void {
     .option('--name <package-name>', 'Package name override')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
+    .option('--json', 'Emit the full machine-readable JSON report')
     .action(runExport);
 }

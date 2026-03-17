@@ -17,10 +17,26 @@ async function exportAndImport() {
   await runCli(['import', packageRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
 }
 
+test('validate command defaults to human-readable output and supports --json', async () => {
+  await exportAndImport();
+
+  const human = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  assert.match(human.stdout, /Validation: passed/);
+  assert.match(human.stdout, /Passed:/);
+  assert.match(human.stdout, /Warnings:/);
+  assert.match(human.stdout, /Next steps:/);
+  assert.equal(human.stdout.includes('"passed"'), false);
+
+  const json = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy', '--json']);
+  const report = JSON.parse(json.stdout);
+  assert.ok(Array.isArray(report.passed));
+  assert.ok(Array.isArray(report.failed));
+});
+
 test('validate command reports passed warnings failed and nextSteps', async () => {
   await exportAndImport();
 
-  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy', '--json']);
   const report = JSON.parse(stdout);
 
   assert.equal(Array.isArray(report.passed), true);
@@ -60,6 +76,7 @@ test('validate reports target config consistency when config path is provided', 
     '--target-workspace', targetRoot,
     '--agent-id', 'supercoder-copy',
     '--config', configPath,
+    '--json',
   ]);
   const report = JSON.parse(stdout);
 
@@ -82,6 +99,7 @@ test('validate reports target config consistency when config path is provided', 
     '--target-workspace', targetRoot,
     '--agent-id', 'supercoder-copy',
     '--config', configPath,
+    '--json',
   ]);
   const mismatchReport = JSON.parse(mismatch.stdout);
   assert.ok(mismatchReport.failed.some((entry: string) => entry.includes('workspace mismatch')));
@@ -91,7 +109,7 @@ test('validate reports missing required workspace files as failures', async () =
   await exportAndImport();
   await rm(path.join(targetRoot, 'AGENTS.md'), { force: true });
 
-  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy', '--json']);
   const report = JSON.parse(stdout);
 
   assert.ok(report.failed.some((failure: string) => failure.includes('AGENTS.md')));
