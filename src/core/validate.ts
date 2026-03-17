@@ -5,6 +5,7 @@ import { REQUIRED_WORKSPACE_FILES } from './constants';
 import { loadOpenClawConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
 
+// TODO: In a future PR, update workspace-scan.ts to replace its inline access() checks with pathExists.
 export async function validateImportedWorkspace(params: {
   targetWorkspacePath: string;
   agentId?: string;
