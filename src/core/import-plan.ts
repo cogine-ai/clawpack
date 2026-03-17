@@ -1,5 +1,5 @@
-import { access } from 'node:fs/promises';
 import path from 'node:path';
+import { pathExists } from '../utils/fs';
 import { loadOpenClawConfig } from './openclaw-config';
 import type { ImportPlan, ReadPackageResult } from './types';
 
@@ -102,13 +102,4 @@ export async function planImport(params: {
     nextSteps,
     writePlan,
   };
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }

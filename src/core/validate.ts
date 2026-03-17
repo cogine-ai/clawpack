@@ -1,10 +1,11 @@
-import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFile } from '../utils/json';
+import { pathExists } from '../utils/fs';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
 import { loadOpenClawConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
 
+// TODO: In a future PR, update workspace-scan.ts to replace its inline access() checks with pathExists.
 export async function validateImportedWorkspace(params: {
   targetWorkspacePath: string;
   agentId?: string;
@@ -92,13 +93,4 @@ export async function validateImportedWorkspace(params: {
   );
 
   return report;
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
