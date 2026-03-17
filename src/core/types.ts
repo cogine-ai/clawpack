@@ -58,7 +58,20 @@ export interface PackageManifest {
   source: {
     agentId: string;
     workspaceName: string;
-    openclawVersion: string;
+    openclawVersion?: string;
+  };
+  metadata?: {
+    createdAt: string;
+    createdBy: {
+      name: string;
+      version: string;
+    };
+    platform: {
+      os: NodeJS.Platform;
+      arch: string;
+      node: string;
+    };
+    contentHash: string;
   };
   includes: {
     workspaceFiles: string[];

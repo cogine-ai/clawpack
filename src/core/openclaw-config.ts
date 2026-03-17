@@ -5,6 +5,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import stripJsonComments from 'strip-json-comments';
 
 export interface MinimalOpenClawConfig {
+  version?: string;
+  openclawVersion?: string;
   agents?: Record<string, {
     id?: string;
     name?: string;
@@ -47,6 +49,15 @@ export async function loadOpenClawConfig(params: { configPath?: string; cwd?: st
     configPath: discovered.configPath,
     config: parseJsonc(raw) as MinimalOpenClawConfig,
   };
+}
+
+export async function detectOpenClawVersion(params: { configPath?: string; cwd?: string }): Promise<string | undefined> {
+  try {
+    const { config } = await loadOpenClawConfig(params);
+    return extractOpenClawVersion(config);
+  } catch {
+    return undefined;
+  }
 }
 
 export function extractPortableAgentDefinition(params: {
@@ -139,6 +150,16 @@ export async function upsertPortableAgentDefinition(params: {
 function parseJsonc(value: string): unknown {
   const withoutComments = stripJsonComments(value);
   return JSON.parse(withoutComments);
+}
+
+function extractOpenClawVersion(config: MinimalOpenClawConfig): string | undefined {
+  for (const candidate of [config.openclawVersion, config.version]) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return undefined;
 }
 
 function findAgentIdByWorkspace(config: MinimalOpenClawConfig, workspacePath: string): string | undefined {

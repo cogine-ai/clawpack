@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
+import { detectOpenClawVersion } from '../core/openclaw-config';
 import { writePackageDirectory } from '../core/package-write';
 import { detectSkills } from '../core/skills-detect';
 import { scanWorkspace } from '../core/workspace-scan';
@@ -24,6 +25,10 @@ export async function runExport(options: ExportOptions): Promise<void> {
     configPath: options.config,
     agentId: options.agentId,
   });
+  const openclawVersion = await detectOpenClawVersion({
+    configPath: options.config,
+    cwd: scan.workspacePath,
+  });
   const packageName = options.name ?? path.basename(options.out).replace(/\.ocpkg$/, '');
 
   const result = await writePackageDirectory({
@@ -32,6 +37,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     scan,
     skills,
     agentDefinition,
+    openclawVersion,
   });
 
   console.log(

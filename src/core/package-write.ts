@@ -10,6 +10,7 @@ export async function writePackageDirectory(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
+  openclawVersion?: string;
 }): Promise<ExportPackageResult> {
   await rm(params.outputPath, { recursive: true, force: true });
   await mkdir(path.join(params.outputPath, 'workspace'), { recursive: true });
@@ -48,6 +49,7 @@ export async function writePackageDirectory(params: {
     scan: params.scan,
     skills: params.skills,
     agentDefinition: params.agentDefinition,
+    openclawVersion: params.openclawVersion,
     checksums,
     warnings: importHints.warnings,
   });

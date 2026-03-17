@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { readPackageDirectory } from '../src/core/package-read';
@@ -30,6 +30,13 @@ test('export command writes package directory structure and excludes daily memor
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
   assert.equal(manifest.includes.skills, 'manifest-only');
+  assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
+  assert.equal(typeof manifest.metadata.createdBy.version, 'string');
+  assert.equal(manifest.metadata.platform.os, process.platform);
+  assert.equal(manifest.metadata.platform.arch, process.arch);
+  assert.equal(manifest.metadata.platform.node, process.version);
+  assert.match(manifest.metadata.contentHash, /^[a-f0-9]{64}$/);
 });
 
 test('package reader opens a valid exported package and verifies checksums', async () => {
@@ -40,6 +47,22 @@ test('package reader opens a valid exported package and verifies checksums', asy
   assert.equal(pkg.manifest.packageType, 'openclaw-agent-template');
   assert.equal(pkg.workspaceFiles.length >= 6, true);
   assert.equal(pkg.checksums['config/agent.json'].length, 64);
+});
+
+test('package reader tolerates manifests from older packages with missing additive metadata', async () => {
+  await rm(outputRoot, { recursive: true, force: true });
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
+
+  const manifestPath = path.join(outputRoot, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  delete manifest.metadata;
+  delete manifest.source.openclawVersion;
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  const pkg = await readPackageDirectory(outputRoot);
+  assert.equal(pkg.manifest.metadata, undefined);
+  assert.equal(pkg.manifest.source.openclawVersion, undefined);
+  assert.equal(pkg.workspaceFiles.length >= 6, true);
 });
 
 test('roundtrip export -> import -> validate succeeds with expected warnings', async () => {
