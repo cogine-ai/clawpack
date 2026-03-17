@@ -1,4 +1,6 @@
 import path from 'node:path';
+import packageJson from '../../package.json';
+import { checksumText } from './checksums';
 import { EXPORT_MODE, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE, SKILLS_MODE } from './constants';
 import type {
   AgentDefinition,
@@ -15,6 +17,9 @@ export function buildManifest(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
+  openclawVersion?: string;
+  metadata?: PackageManifest['metadata'];
+  checksums?: Record<string, string>;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
   return {
@@ -25,8 +30,9 @@ export function buildManifest(params: {
     source: {
       agentId: params.agentDefinition.agent.suggestedId,
       workspaceName,
-      openclawVersion: 'unknown',
+      openclawVersion: params.openclawVersion ?? 'unknown',
     },
+    metadata: params.metadata ?? buildPackageMetadata(params.checksums ?? {}),
     includes: {
       workspaceFiles: params.scan.includedFiles.map((file) => file.relativePath),
       dailyMemory: false,
@@ -70,6 +76,7 @@ export function buildExportArtifacts(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
+  openclawVersion?: string;
   checksums: Record<string, string>;
   warnings?: string[];
 }): ExportArtifacts {
@@ -77,5 +84,21 @@ export function buildExportArtifacts(params: {
     manifest: buildManifest(params),
     checksums: params.checksums,
     exportReport: buildExportReport(params),
+  };
+}
+
+function buildPackageMetadata(checksums: Record<string, string>): NonNullable<PackageManifest['metadata']> {
+  return {
+    createdAt: new Date().toISOString(),
+    createdBy: {
+      name: packageJson.name,
+      version: packageJson.version,
+    },
+    platform: {
+      os: process.platform,
+      arch: process.arch,
+      node: process.version,
+    },
+    contentHash: checksumText(JSON.stringify(Object.entries(checksums).sort(([left], [right]) => left.localeCompare(right)))),
   };
 }
