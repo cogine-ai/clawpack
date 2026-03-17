@@ -4,12 +4,104 @@ import { executeImport } from '../core/import-exec';
 import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { planImport } from '../core/import-plan';
 import { readPackageDirectory } from '../core/package-read';
+import type { ImportPlan } from '../core/types';
 
 interface ImportOptions {
   targetWorkspace: string;
   agentId?: string;
   config?: string;
   force?: boolean;
+  json?: boolean;
+}
+
+export interface RenderableCliError {
+  render(): string;
+}
+
+interface BlockedImportReport extends Pick<
+  ImportPlan,
+  'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'
+> {
+  status: 'blocked';
+}
+
+class ImportBlockedError extends Error implements RenderableCliError {
+  constructor(
+    readonly report: BlockedImportReport,
+    private readonly asJson: boolean,
+  ) {
+    super(formatBlockedImportReport(report));
+    this.name = 'ImportBlockedError';
+  }
+
+  render(): string {
+    return this.asJson
+      ? JSON.stringify(this.report, null, 2)
+      : this.message;
+  }
+}
+
+function formatRequiredInputKey(key: BlockedImportReport['requiredInputs'][number]['key']): string {
+  if (key === 'agentId') {
+    return '--agent-id';
+  }
+
+  if (key === 'targetWorkspacePath') {
+    return '--target-workspace';
+  }
+
+  return key;
+}
+
+function pushSection(lines: string[], heading: string, items: string[]): void {
+  if (items.length === 0) {
+    return;
+  }
+
+  lines.push('', `${heading}:`, ...items.map((item) => `- ${item}`));
+}
+
+function formatBlockedImportReport(report: BlockedImportReport): string {
+  const { summary } = report.writePlan;
+  const lines = ['Import blocked'];
+
+  pushSection(lines, 'Blocked by', report.failed);
+  pushSection(
+    lines,
+    'Required inputs',
+    report.requiredInputs.map((item) => `${formatRequiredInputKey(item.key)}: ${item.reason}`),
+  );
+  pushSection(lines, 'Warnings', report.warnings);
+  pushSection(lines, 'Next steps', report.nextSteps);
+
+  lines.push(
+    '',
+    'Planned import:',
+    `- target workspace: ${report.writePlan.targetWorkspacePath}`,
+    `- target agent id: ${report.writePlan.targetAgentId ?? 'not set'}`,
+    `- workspace files: ${summary.fileCount}`,
+  );
+
+  if (report.writePlan.targetConfigPath) {
+    lines.push(`- target config: ${report.writePlan.targetConfigPath}`);
+  }
+
+  if (summary.existingWorkspaceDetected) {
+    lines.push('- existing workspace detected: yes');
+  }
+
+  if (summary.configAgentCollision) {
+    lines.push('- target config agent collision detected: yes');
+  }
+
+  return lines.join('\n');
+}
+
+export function isRenderableCliError(error: unknown): error is RenderableCliError {
+  return typeof error === 'object'
+    && error !== null
+    && 'render' in error
+    && typeof (error as RenderableCliError).render === 'function';
 }
 
 export async function runImport(packagePath: string, options: ImportOptions): Promise<void> {
@@ -31,14 +123,14 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
   });
 
   if (!plan.canProceed) {
-    throw new Error(JSON.stringify({
+    throw new ImportBlockedError({
       status: 'blocked',
       failed: plan.failed,
       requiredInputs: plan.requiredInputs,
       warnings: plan.warnings,
       nextSteps: plan.nextSteps,
       writePlan: plan.writePlan,
-    }, null, 2));
+    }, options.json === true);
   }
 
   const result = await executeImport({ pkg, plan });
@@ -53,5 +145,6 @@ export function registerImportCommand(command: Command): void {
     .option('--agent-id <id>', 'Target agent id override')
     .option('--config <path>', 'Target OpenClaw config path')
     .option('--force', 'Overwrite an existing target workspace')
+    .option('--json', 'Emit blocked import details as JSON on failure')
     .action(runImport);
 }

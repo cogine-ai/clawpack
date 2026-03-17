@@ -5,6 +5,7 @@ import { registerExportCommand } from './commands/export';
 import { registerImportCommand } from './commands/import';
 import { registerInspectCommand } from './commands/inspect';
 import { registerValidateCommand } from './commands/validate';
+import { isRenderableCliError } from './commands/import';
 
 const program = new Command();
 
@@ -19,6 +20,13 @@ registerImportCommand(program.command('import'));
 registerValidateCommand(program.command('validate'));
 
 program.parseAsync(process.argv).catch((error: unknown) => {
-  console.error(error);
+  if (isRenderableCliError(error)) {
+    console.error(error.render());
+  } else if (error instanceof Error) {
+    console.error(error.message);
+  } else {
+    console.error(String(error));
+  }
+
   process.exitCode = 1;
 });
