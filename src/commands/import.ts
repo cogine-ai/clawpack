@@ -14,7 +14,7 @@ interface ImportOptions {
   json?: boolean;
 }
 
-interface RenderableCliError {
+export interface RenderableCliError {
   render(): string;
 }
 
@@ -78,7 +78,7 @@ function formatBlockedImportReport(report: BlockedImportReport): string {
     '',
     'Planned import:',
     `- target workspace: ${report.writePlan.targetWorkspacePath}`,
-    `- target agent id: ${report.writePlan.targetAgentId}`,
+    `- target agent id: ${report.writePlan.targetAgentId ?? 'not set'}`,
     `- workspace files: ${summary.fileCount}`,
   );
 
