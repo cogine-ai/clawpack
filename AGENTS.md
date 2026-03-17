@@ -99,10 +99,24 @@ npm pack
 Do not publish if build/test/package verification is failing or stale.
 
 Keep these aligned before release:
+- CHANGELOG.md — update `[Unreleased]` with all notable changes, then promote to a versioned section on release
 - README examples
 - CLI behavior
 - npm package metadata
 - GitHub release text when relevant
+
+### CHANGELOG Maintenance
+
+CHANGELOG.md follows [Keep a Changelog](https://keepachangelog.com/) format.
+
+When merging a PR with user-facing impact:
+- add an entry under `## [Unreleased]` in the appropriate category (`Added`, `Changed`, `Fixed`, `Deprecated`, `Removed`, `Security`)
+- reference the issue/PR number when applicable (e.g. `(#42)`)
+
+When cutting a release:
+- rename `## [Unreleased]` contents to `## [x.y.z] - YYYY-MM-DD`
+- add a fresh empty `## [Unreleased]` section above it
+- update the comparison links at the bottom of the file
 
 ## Contribution Bias
 
