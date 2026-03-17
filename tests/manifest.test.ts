@@ -25,7 +25,14 @@ test('manifest builder emits required fields and manifest-only skills mode', asy
   assert.equal(manifest.packageType, 'openclaw-agent-template');
   assert.equal(manifest.includes.skills, 'manifest-only');
   assert.equal(manifest.includes.dailyMemory, false);
-  assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
+  assert.deepEqual(manifest.includes.workspaceFiles, [
+    'AGENTS.md',
+    'IDENTITY.md',
+    'MEMORY.md',
+    'SOUL.md',
+    'TOOLS.md',
+    'USER.md',
+  ]);
 });
 
 test('checksums and export report are deterministic and include exclusions', async () => {
@@ -43,5 +50,8 @@ test('checksums and export report are deterministic and include exclusions', asy
   });
 
   assert.equal(report.warnings[0], 'demo warning');
-  assert.deepEqual(report.excludedFiles.map((file) => file.relativePath), ['memory/2026-03-16.md']);
+  assert.deepEqual(
+    report.excludedFiles.map((file) => file.relativePath),
+    ['memory/2026-03-16.md'],
+  );
 });

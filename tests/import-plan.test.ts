@@ -35,7 +35,10 @@ test('planImport requires target inputs and warns about v1 manual follow-up', as
     targetWorkspacePath: targetRoot,
   });
 
-  assert.deepEqual(plan.requiredInputs.map((item) => item.key), ['agentId']);
+  assert.deepEqual(
+    plan.requiredInputs.map((item) => item.key),
+    ['agentId'],
+  );
   assert.equal(plan.canProceed, false);
   assert.ok(plan.warnings.some((warning) => warning.includes('Skills are manifest-only')));
   assert.ok(plan.nextSteps.some((step) => step.includes('Channel bindings')));
@@ -72,15 +75,22 @@ test('planImport preflights target config agent-id collisions and reports safer 
 
   await rm(configRoot, { recursive: true, force: true });
   await mkdir(configRoot, { recursive: true });
-  await writeFile(configPath, JSON.stringify({
-    agents: {
-      'supercoder-copy': {
-        id: 'supercoder-copy',
-        name: 'Existing Agent',
-        workspace: '/tmp/existing-workspace',
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        agents: {
+          'supercoder-copy': {
+            id: 'supercoder-copy',
+            name: 'Existing Agent',
+            workspace: '/tmp/existing-workspace',
+          },
+        },
       },
-    },
-  }, null, 2));
+      null,
+      2,
+    ),
+  );
 
   const blocked = await planImport({
     pkg,
@@ -90,7 +100,9 @@ test('planImport preflights target config agent-id collisions and reports safer 
   });
 
   assert.equal(blocked.canProceed, false);
-  assert.ok(blocked.failed.some((failure) => failure.includes('already exists in OpenClaw config')));
+  assert.ok(
+    blocked.failed.some((failure) => failure.includes('already exists in OpenClaw config')),
+  );
   assert.ok(blocked.nextSteps.some((step) => step.includes('Choose a different --agent-id')));
   assert.ok(blocked.writePlan.metadataDirectory.endsWith('.openclaw-agent-package'));
   assert.ok(blocked.writePlan.workspaceFiles.some((file) => file.relativePath === 'AGENTS.md'));

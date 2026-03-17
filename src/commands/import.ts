@@ -1,11 +1,11 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { executeImport } from '../core/import-exec';
-import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { planImport } from '../core/import-plan';
+import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { cleanupTempDir, readPackage } from '../core/package-read';
 import type { ImportPlan } from '../core/types';
-import { renderableCliErrorBrand, type RenderableCliError } from '../renderable-cli-error';
+import { type RenderableCliError, renderableCliErrorBrand } from '../renderable-cli-error';
 import { pushSection } from '../utils/output';
 
 interface ImportOptions {
@@ -16,10 +16,8 @@ interface ImportOptions {
   json?: boolean;
 }
 
-interface BlockedImportReport extends Pick<
-  ImportPlan,
-  'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'
-> {
+interface BlockedImportReport
+  extends Pick<ImportPlan, 'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'> {
   status: 'blocked';
 }
 
@@ -35,9 +33,7 @@ class ImportBlockedError extends Error implements RenderableCliError {
   }
 
   render(): string {
-    return this.asJson
-      ? JSON.stringify(this.report, null, 2)
-      : this.message;
+    return this.asJson ? JSON.stringify(this.report, null, 2) : this.message;
   }
 }
 
@@ -97,12 +93,18 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
 
   try {
     const pkg = await readPackage(path.resolve(packagePath), {
-      onTempDir(dir) { tempDir = dir; },
+      onTempDir(dir) {
+        tempDir = dir;
+      },
     });
 
     const configPath = options.config
       ? path.resolve(options.config)
-      : (await discoverOpenClawConfig({ cwd: path.resolve(options.targetWorkspace) }).catch(() => undefined))?.configPath;
+      : (
+          await discoverOpenClawConfig({ cwd: path.resolve(options.targetWorkspace) }).catch(
+            () => undefined,
+          )
+        )?.configPath;
 
     const plan = await planImport({
       pkg,
@@ -113,14 +115,17 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
     });
 
     if (!plan.canProceed) {
-      throw new ImportBlockedError({
-        status: 'blocked',
-        failed: plan.failed,
-        requiredInputs: plan.requiredInputs,
-        warnings: plan.warnings,
-        nextSteps: plan.nextSteps,
-        writePlan: plan.writePlan,
-      }, options.json === true);
+      throw new ImportBlockedError(
+        {
+          status: 'blocked',
+          failed: plan.failed,
+          requiredInputs: plan.requiredInputs,
+          warnings: plan.warnings,
+          nextSteps: plan.nextSteps,
+          writePlan: plan.writePlan,
+        },
+        options.json === true,
+      );
     }
 
     const result = await executeImport({ pkg, plan });

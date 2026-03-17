@@ -1,26 +1,30 @@
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { AgentDefinition } from './types';
-import { readFile, writeFile } from 'node:fs/promises';
 import stripJsonComments from 'strip-json-comments';
+import type { AgentDefinition } from './types';
 
 export interface MinimalOpenClawConfig {
-  agents?: Record<string, {
-    id?: string;
-    name?: string;
-    workspace?: string;
-    identity?: {
+  agents?: Record<
+    string,
+    {
+      id?: string;
       name?: string;
-    };
-    model?: {
-      default?: string;
-    };
-    [key: string]: unknown;
-  }>;
+      workspace?: string;
+      identity?: {
+        name?: string;
+      };
+      model?: {
+        default?: string;
+      };
+      [key: string]: unknown;
+    }
+  >;
   [key: string]: unknown;
 }
 
-export async function discoverOpenClawConfig(params: { configPath?: string; cwd?: string } = {}): Promise<{ configPath: string }> {
+export async function discoverOpenClawConfig(
+  params: { configPath?: string; cwd?: string } = {},
+): Promise<{ configPath: string }> {
   const candidates = params.configPath
     ? [path.resolve(params.configPath)]
     : [
@@ -40,7 +44,10 @@ export async function discoverOpenClawConfig(params: { configPath?: string; cwd?
   throw new Error(`OpenClaw config not found. Checked: ${candidates.join(', ')}`);
 }
 
-export async function loadOpenClawConfig(params: { configPath?: string; cwd?: string }): Promise<{ configPath: string; config: MinimalOpenClawConfig }> {
+export async function loadOpenClawConfig(params: {
+  configPath?: string;
+  cwd?: string;
+}): Promise<{ configPath: string; config: MinimalOpenClawConfig }> {
   const discovered = await discoverOpenClawConfig(params);
   const raw = await readFile(discovered.configPath, 'utf8');
   return {
@@ -57,14 +64,18 @@ export function extractPortableAgentDefinition(params: {
 }): AgentDefinition {
   const workspaceBasename = path.basename(params.workspacePath);
   const fallbackId = workspaceBasename.replace(/^workspace-/, '');
-  const selectedAgentId = params.agentId ?? findAgentIdByWorkspace(params.config, params.workspacePath) ?? fallbackId;
+  const selectedAgentId =
+    params.agentId ?? findAgentIdByWorkspace(params.config, params.workspacePath) ?? fallbackId;
   const sourceAgent = params.config.agents?.[selectedAgentId];
 
   if (!sourceAgent) {
     throw new Error(`Agent not found in OpenClaw config: ${selectedAgentId}`);
   }
 
-  const suggestedName = sourceAgent.name ?? sourceAgent.identity?.name ?? toTitleCase(selectedAgentId.replace(/-/g, ' '));
+  const suggestedName =
+    sourceAgent.name ??
+    sourceAgent.identity?.name ??
+    toTitleCase(selectedAgentId.replace(/-/g, ' '));
   const identityName = sourceAgent.identity?.name ?? suggestedName;
 
   return {
@@ -141,7 +152,10 @@ function parseJsonc(value: string): unknown {
   return JSON.parse(withoutComments);
 }
 
-function findAgentIdByWorkspace(config: MinimalOpenClawConfig, workspacePath: string): string | undefined {
+function findAgentIdByWorkspace(
+  config: MinimalOpenClawConfig,
+  workspacePath: string,
+): string | undefined {
   for (const [agentId, agent] of Object.entries(config.agents ?? {})) {
     if (agent.workspace && path.basename(agent.workspace) === path.basename(workspacePath)) {
       return agentId;

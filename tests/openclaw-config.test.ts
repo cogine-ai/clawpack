@@ -52,35 +52,43 @@ test('discover/load/extract reads minimal OpenClaw config fixture and returns po
 });
 
 test('loadOpenClawConfig preserves // inside JSON string values', async () => {
-  const configPath = await writeJsoncFixture('string-line-comment-token.jsonc', `{
+  const configPath = await writeJsoncFixture(
+    'string-line-comment-token.jsonc',
+    `{
   "agents": {
     "supercoder": {
       "name": "https://example.com//agents/supercoder"
     }
   }
 }
-`);
+`,
+  );
 
   const loaded = await loadOpenClawConfig({ configPath });
   assert.equal(loaded.config.agents?.supercoder?.name, 'https://example.com//agents/supercoder');
 });
 
 test('loadOpenClawConfig preserves /* */ inside JSON string values', async () => {
-  const configPath = await writeJsoncFixture('string-block-comment-token.jsonc', `{
+  const configPath = await writeJsoncFixture(
+    'string-block-comment-token.jsonc',
+    `{
   "agents": {
     "supercoder": {
       "name": "literal /* not a comment */ value"
     }
   }
 }
-`);
+`,
+  );
 
   const loaded = await loadOpenClawConfig({ configPath });
   assert.equal(loaded.config.agents?.supercoder?.name, 'literal /* not a comment */ value');
 });
 
 test('loadOpenClawConfig still accepts real JSONC line and block comments', async () => {
-  const configPath = await writeJsoncFixture('actual-comments.jsonc', `{
+  const configPath = await writeJsoncFixture(
+    'actual-comments.jsonc',
+    `{
   // agent catalog
   "agents": {
     /* exported agent */
@@ -89,7 +97,8 @@ test('loadOpenClawConfig still accepts real JSONC line and block comments', asyn
     }
   }
 }
-`);
+`,
+  );
 
   const loaded = await loadOpenClawConfig({ configPath });
   assert.equal(loaded.config.agents?.supercoder?.name, 'Supercoder');
@@ -138,9 +147,12 @@ test('inspect command defaults to human-readable output and supports --json', as
 
   const human = await runCli([
     'inspect',
-    '--workspace', fixtureWorkspace,
-    '--config', fixtureConfig,
-    '--agent-id', 'supercoder',
+    '--workspace',
+    fixtureWorkspace,
+    '--config',
+    fixtureConfig,
+    '--agent-id',
+    'supercoder',
   ]);
 
   assert.match(human.stdout, /Workspace:/);
@@ -151,16 +163,23 @@ test('inspect command defaults to human-readable output and supports --json', as
 
   const json = await runCli([
     'inspect',
-    '--workspace', fixtureWorkspace,
-    '--config', fixtureConfig,
-    '--agent-id', 'supercoder',
+    '--workspace',
+    fixtureWorkspace,
+    '--config',
+    fixtureConfig,
+    '--agent-id',
+    'supercoder',
     '--json',
   ]);
 
   const report = JSON.parse(json.stdout);
   assert.equal(report.workspacePath, fixtureWorkspace);
   assert.ok(report.includedFiles.includes('AGENTS.md'));
-  assert.ok(report.excludedFiles.some((entry: { relativePath: string }) => entry.relativePath === 'memory/2026-03-16.md'));
+  assert.ok(
+    report.excludedFiles.some(
+      (entry: { relativePath: string }) => entry.relativePath === 'memory/2026-03-16.md',
+    ),
+  );
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
   assert.deepEqual(report.skills.referencedSkills, ['brainstorming']);
@@ -174,22 +193,31 @@ test('export/import/validate uses fixture config and persists agent into target 
 
   await runCli([
     'export',
-    '--workspace', fixtureWorkspace,
-    '--config', fixtureConfig,
-    '--agent-id', 'supercoder',
-    '--out', exportOut,
+    '--workspace',
+    fixtureWorkspace,
+    '--config',
+    fixtureConfig,
+    '--agent-id',
+    'supercoder',
+    '--out',
+    exportOut,
   ]);
 
-  const agentJson = JSON.parse(await readFile(path.join(exportOut, 'config', 'agent.json'), 'utf8'));
+  const agentJson = JSON.parse(
+    await readFile(path.join(exportOut, 'config', 'agent.json'), 'utf8'),
+  );
   assert.equal(agentJson.agent.model.default, 'openai-codex/gpt-5.4');
   assert.ok(agentJson.notes.some((note: string) => note.includes('OpenClaw config')));
 
   await runCli([
     'import',
     exportOut,
-    '--target-workspace', importWorkspace,
-    '--agent-id', 'supercoder-imported',
-    '--config', importConfig,
+    '--target-workspace',
+    importWorkspace,
+    '--agent-id',
+    'supercoder-imported',
+    '--config',
+    importConfig,
   ]);
 
   const importedConfig = JSON.parse(await readFile(importConfig, 'utf8'));
@@ -197,8 +225,10 @@ test('export/import/validate uses fixture config and persists agent into target 
 
   const { stdout } = await runCli([
     'validate',
-    '--target-workspace', importWorkspace,
-    '--agent-id', 'supercoder-imported',
+    '--target-workspace',
+    importWorkspace,
+    '--agent-id',
+    'supercoder-imported',
     '--json',
   ]);
   const report = JSON.parse(stdout);

@@ -64,7 +64,9 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `  workspace basename: ${report.portableConfig.agent.workspace.suggestedBasename}`,
     `  identity name: ${report.portableConfig.agent.identity.name}`,
     `  default model: ${report.portableConfig.agent.model?.default ?? 'not set'}`,
-    `  portable fields: ${Object.entries(report.portableConfig.fieldClassification).map(([key, value]) => `${key}=${value}`).join(', ')}`,
+    `  portable fields: ${Object.entries(report.portableConfig.fieldClassification)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(', ')}`,
     `Skills (workspace): ${skills.workspaceSkills.join(', ') || 'none'}`,
     `Skills (referenced): ${skills.referencedSkills.join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,

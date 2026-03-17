@@ -23,7 +23,11 @@ test('export command writes package directory structure and excludes daily memor
     'workspace/AGENTS.md',
     'workspace/MEMORY.md',
   ]) {
-    assert.equal(existsSync(path.join(outputRoot, requiredPath)), true, `${requiredPath} should exist`);
+    assert.equal(
+      existsSync(path.join(outputRoot, requiredPath)),
+      true,
+      `${requiredPath} should exist`,
+    );
   }
 
   assert.equal(existsSync(path.join(outputRoot, 'workspace', 'memory', '2026-03-16.md')), false);
@@ -67,7 +71,14 @@ test('import success defaults to human-readable output and supports --json', asy
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
   await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
 
-  const human = await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  const human = await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+  ]);
   assert.match(human.stdout, /Import complete/);
   assert.match(human.stdout, /Workspace:/);
   assert.match(human.stdout, /Agent id: supercoder-copy/);
@@ -76,7 +87,15 @@ test('import success defaults to human-readable output and supports --json', asy
 
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
 
-  const json = await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy', '--json']);
+  const json = await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+    '--json',
+  ]);
   const report = JSON.parse(json.stdout);
   assert.equal(report.status, 'ok');
   assert.equal(report.agentId, 'supercoder-copy');
@@ -89,12 +108,31 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
 
   await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
-  await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
-  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy', '--json']);
+  await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+  ]);
+  const { stdout } = await runCli([
+    'validate',
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+    '--json',
+  ]);
 
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
+  assert.ok(
+    report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
+  );
   assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
-  assert.equal(existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')), true);
+  assert.equal(
+    existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
+    true,
+  );
 });

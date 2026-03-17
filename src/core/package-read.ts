@@ -1,10 +1,17 @@
 import { access, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { cleanupTempDir, extractArchive, isArchivePath } from './archive';
-import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
-import { checksumFile } from './checksums';
-import type { ExportReport, ImportHints, PackageManifest, ReadPackageResult, SkillsManifest, AgentDefinition } from './types';
 import { readJsonFile } from '../utils/json';
+import { extractArchive, isArchivePath } from './archive';
+import { checksumFile } from './checksums';
+import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
+import type {
+  AgentDefinition,
+  ExportReport,
+  ImportHints,
+  PackageManifest,
+  ReadPackageResult,
+  SkillsManifest,
+} from './types';
 
 export interface ReadPackageOptions {
   onTempDir?: (tempDir: string) => void;
@@ -75,11 +82,21 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     throw new Error(`Unsupported format version: ${manifest.formatVersion}`);
   }
 
-  const agentDefinition = await readJsonFile<AgentDefinition>(path.join(resolvedRoot, 'config', 'agent.json'));
-  const skillsManifest = await readJsonFile<SkillsManifest>(path.join(resolvedRoot, 'config', 'skills-manifest.json'));
-  const importHints = await readJsonFile<ImportHints>(path.join(resolvedRoot, 'config', 'import-hints.json'));
-  const checksums = await readJsonFile<Record<string, string>>(path.join(resolvedRoot, 'meta', 'checksums.json'));
-  const exportReport = await readJsonFile<ExportReport>(path.join(resolvedRoot, 'meta', 'export-report.json'));
+  const agentDefinition = await readJsonFile<AgentDefinition>(
+    path.join(resolvedRoot, 'config', 'agent.json'),
+  );
+  const skillsManifest = await readJsonFile<SkillsManifest>(
+    path.join(resolvedRoot, 'config', 'skills-manifest.json'),
+  );
+  const importHints = await readJsonFile<ImportHints>(
+    path.join(resolvedRoot, 'config', 'import-hints.json'),
+  );
+  const checksums = await readJsonFile<Record<string, string>>(
+    path.join(resolvedRoot, 'meta', 'checksums.json'),
+  );
+  const exportReport = await readJsonFile<ExportReport>(
+    path.join(resolvedRoot, 'meta', 'export-report.json'),
+  );
 
   for (const [relativePath, expectedChecksum] of Object.entries(checksums)) {
     const actualChecksum = await checksumFile(path.join(resolvedRoot, relativePath));

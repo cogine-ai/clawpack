@@ -3,7 +3,13 @@ import path from 'node:path';
 import { createArchive, deriveArchivePath } from './archive';
 import { checksumFile, checksumText } from './checksums';
 import { buildExportArtifacts } from './manifest';
-import type { AgentDefinition, ExportPackageResult, ImportHints, SkillsManifest, WorkspaceScanResult } from './types';
+import type {
+  AgentDefinition,
+  ExportPackageResult,
+  ImportHints,
+  SkillsManifest,
+  WorkspaceScanResult,
+} from './types';
 
 export async function writePackageArchive(params: {
   outputPath: string;
@@ -54,7 +60,9 @@ export async function writePackageDirectory(params: {
   }
 
   const importHints: ImportHints = {
-    requiredInputs: [{ key: 'agentId', reason: 'Target instance may already contain the source agent id.' }],
+    requiredInputs: [
+      { key: 'agentId', reason: 'Target instance may already contain the source agent id.' },
+    ],
     warnings: [
       'Channel bindings are not included in v1 packages.',
       'Skills are manifest-only and may require manual installation.',
@@ -64,9 +72,17 @@ export async function writePackageDirectory(params: {
   const skillsJson = JSON.stringify(params.skills, null, 2);
   const agentJson = JSON.stringify(params.agentDefinition, null, 2);
   const importHintsJson = JSON.stringify(importHints, null, 2);
-  await writeFile(path.join(params.outputPath, 'config', 'skills-manifest.json'), `${skillsJson}\n`, 'utf8');
+  await writeFile(
+    path.join(params.outputPath, 'config', 'skills-manifest.json'),
+    `${skillsJson}\n`,
+    'utf8',
+  );
   await writeFile(path.join(params.outputPath, 'config', 'agent.json'), `${agentJson}\n`, 'utf8');
-  await writeFile(path.join(params.outputPath, 'config', 'import-hints.json'), `${importHintsJson}\n`, 'utf8');
+  await writeFile(
+    path.join(params.outputPath, 'config', 'import-hints.json'),
+    `${importHintsJson}\n`,
+    'utf8',
+  );
   checksums['config/skills-manifest.json'] = checksumText(`${skillsJson}\n`);
   checksums['config/agent.json'] = checksumText(`${agentJson}\n`);
   checksums['config/import-hints.json'] = checksumText(`${importHintsJson}\n`);
@@ -86,8 +102,16 @@ export async function writePackageDirectory(params: {
   const reportJson = JSON.stringify(artifacts.exportReport, null, 2);
 
   await writeFile(path.join(params.outputPath, 'manifest.json'), `${manifestJson}\n`, 'utf8');
-  await writeFile(path.join(params.outputPath, 'meta', 'checksums.json'), `${checksumsJson}\n`, 'utf8');
-  await writeFile(path.join(params.outputPath, 'meta', 'export-report.json'), `${reportJson}\n`, 'utf8');
+  await writeFile(
+    path.join(params.outputPath, 'meta', 'checksums.json'),
+    `${checksumsJson}\n`,
+    'utf8',
+  );
+  await writeFile(
+    path.join(params.outputPath, 'meta', 'export-report.json'),
+    `${reportJson}\n`,
+    'utf8',
+  );
 
   return {
     packageRoot: params.outputPath,

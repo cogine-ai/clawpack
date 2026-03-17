@@ -12,6 +12,9 @@ test('scanWorkspace includes core files and excludes daily memory by default', a
     ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md'],
   );
   assert.deepEqual(result.missingOptionalFiles, ['HEARTBEAT.md']);
-  assert.deepEqual(result.excludedFiles.map((file) => file.relativePath), ['memory/2026-03-16.md']);
+  assert.deepEqual(
+    result.excludedFiles.map((file) => file.relativePath),
+    ['memory/2026-03-16.md'],
+  );
   assert.ok(result.ignoredFiles.includes('notes.txt'));
 });

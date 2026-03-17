@@ -8,7 +8,10 @@ import { scanWorkspace } from '../src/core/workspace-scan';
 const fixture = path.resolve('tests/fixtures/source-workspace');
 const tempWorkspace = path.resolve('tests/tmp/skills-workspace');
 
-async function writeRequiredWorkspaceFiles(root: string, overrides: Partial<Record<string, string>> = {}) {
+async function writeRequiredWorkspaceFiles(
+  root: string,
+  overrides: Partial<Record<string, string>> = {},
+) {
   const files: Record<string, string> = {
     'AGENTS.md': '# AGENTS\n',
     'SOUL.md': '# SOUL\n',
@@ -20,7 +23,9 @@ async function writeRequiredWorkspaceFiles(root: string, overrides: Partial<Reco
   };
 
   await Promise.all(
-    Object.entries(files).map(([filename, content]) => writeFile(path.join(root, filename), content, 'utf8')),
+    Object.entries(files).map(([filename, content]) =>
+      writeFile(path.join(root, filename), content, 'utf8'),
+    ),
   );
 }
 
