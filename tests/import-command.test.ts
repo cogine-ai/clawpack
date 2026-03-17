@@ -85,7 +85,7 @@ test('blocked import with --json prints clean JSON to stderr and exits non-zero'
   assert.equal(report.writePlan.targetWorkspacePath, blockedTargetRoot);
 });
 
-test('import --dry-run prints the planned import and skips writes', async () => {
+test('import --dry-run defaults to human-readable output and skips writes', async () => {
   await prepareBlockedImportFixture();
   await rm(dryRunTargetRoot, { recursive: true, force: true });
 
@@ -95,6 +95,30 @@ test('import --dry-run prints the planned import and skips writes', async () => 
     '--target-workspace', dryRunTargetRoot,
     '--agent-id', 'supercoder-dry-run',
     '--dry-run',
+  ]);
+
+  assert.equal(stderr, '');
+  assert.match(stdout, /^Import dry run/m);
+  assert.match(stdout, new RegExp(`- target workspace: ${dryRunTargetRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.match(stdout, /- target agent id: supercoder-dry-run/);
+  assert.match(stdout, /Next steps:/);
+  assert.match(stdout, /Review the imported identity and memory files/);
+  assert.equal(stdout.includes('{\n  "status": "dry-run"'), false);
+
+  await assert.rejects(access(dryRunTargetRoot));
+});
+
+test('import --dry-run with --json prints JSON and skips writes', async () => {
+  await prepareBlockedImportFixture();
+  await rm(dryRunTargetRoot, { recursive: true, force: true });
+
+  const { stdout, stderr } = await runCli([
+    'import',
+    blockedPackageRoot,
+    '--target-workspace', dryRunTargetRoot,
+    '--agent-id', 'supercoder-dry-run',
+    '--dry-run',
+    '--json',
   ]);
 
   assert.equal(stderr, '');

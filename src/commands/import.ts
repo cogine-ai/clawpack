@@ -102,6 +102,36 @@ function formatBlockedImportReport(report: BlockedImportReport): string {
   return lines.join('\n');
 }
 
+function formatDryRunImportReport(report: DryRunImportReport): string {
+  const { summary } = report.writePlan;
+  const lines = ['Import dry run'];
+
+  pushSection(lines, 'Warnings', report.warnings);
+  pushSection(lines, 'Next steps', report.nextSteps);
+
+  lines.push(
+    '',
+    'Planned import:',
+    `- target workspace: ${report.writePlan.targetWorkspacePath}`,
+    `- target agent id: ${report.writePlan.targetAgentId ?? 'not set'}`,
+    `- workspace files: ${summary.fileCount}`,
+  );
+
+  if (report.writePlan.targetConfigPath) {
+    lines.push(`- target config: ${report.writePlan.targetConfigPath}`);
+  }
+
+  if (summary.existingWorkspaceDetected) {
+    lines.push('- existing workspace detected: yes');
+  }
+
+  if (summary.configAgentCollision) {
+    lines.push('- target config agent collision detected: yes');
+  }
+
+  return lines.join('\n');
+}
+
 export function isRenderableCliError(error: unknown): error is RenderableCliError {
   return typeof error === 'object'
     && error !== null
@@ -145,7 +175,7 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
       nextSteps: plan.nextSteps,
       writePlan: plan.writePlan,
     };
-    console.log(JSON.stringify(report, null, 2));
+    console.log(options.json ? JSON.stringify(report, null, 2) : formatDryRunImportReport(report));
     return;
   }
 
@@ -162,6 +192,6 @@ export function registerImportCommand(command: Command): void {
     .option('--config <path>', 'Target OpenClaw config path')
     .option('--force', 'Overwrite an existing target workspace')
     .option('--dry-run', 'Print the import plan and exit without writing files')
-    .option('--json', 'Emit blocked import details as JSON on failure')
+    .option('--json', 'Emit machine-readable JSON for blocked or dry-run import reports')
     .action(runImport);
 }
