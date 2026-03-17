@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { rm } from 'node:fs/promises';
+import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
@@ -9,6 +9,7 @@ const fixtureConfig = path.resolve('tests/fixtures/openclaw-config/source-config
 const fixtureWorkspace = path.resolve('tests/fixtures/source-workspace');
 const blockedPackageRoot = path.resolve('tests/tmp/import-command-blocked-fixture.ocpkg');
 const blockedTargetRoot = path.resolve('tests/tmp/import-command-blocked-target');
+const dryRunTargetRoot = path.resolve('tests/tmp/import-command-dry-run-target');
 const execFileAsync = promisify(execFile);
 
 async function runCli(args: string[]) {
@@ -82,4 +83,28 @@ test('blocked import with --json prints clean JSON to stderr and exits non-zero'
   assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('Review the imported identity and memory files')));
   assert.equal(report.writePlan.targetWorkspacePath, blockedTargetRoot);
+});
+
+test('import --dry-run prints the planned import and skips writes', async () => {
+  await prepareBlockedImportFixture();
+  await rm(dryRunTargetRoot, { recursive: true, force: true });
+
+  const { stdout, stderr } = await runCli([
+    'import',
+    blockedPackageRoot,
+    '--target-workspace', dryRunTargetRoot,
+    '--agent-id', 'supercoder-dry-run',
+    '--dry-run',
+  ]);
+
+  assert.equal(stderr, '');
+
+  const report = JSON.parse(stdout);
+  assert.equal(report.status, 'dry-run');
+  assert.equal(report.writePlan.targetWorkspacePath, dryRunTargetRoot);
+  assert.equal(report.writePlan.targetAgentId, 'supercoder-dry-run');
+  assert.equal(report.writePlan.summary.existingWorkspaceDetected, false);
+  assert.ok(report.nextSteps.some((step: string) => step.includes('Review the imported identity and memory files')));
+
+  await assert.rejects(access(dryRunTargetRoot));
 });

@@ -4,7 +4,7 @@ import { executeImport } from '../core/import-exec';
 import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { planImport } from '../core/import-plan';
 import { readPackageDirectory } from '../core/package-read';
-import type { BlockedImportPlan } from '../core/types';
+import type { BlockedImportPlan, ExecutableImportPlan } from '../core/types';
 
 interface ImportOptions {
   targetWorkspace: string;
@@ -12,6 +12,7 @@ interface ImportOptions {
   config?: string;
   force?: boolean;
   json?: boolean;
+  dryRun?: boolean;
 }
 
 export interface RenderableCliError {
@@ -23,6 +24,10 @@ interface BlockedImportReport extends Pick<
   'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'
 > {
   status: 'blocked';
+}
+
+interface DryRunImportReport extends Pick<ExecutableImportPlan, 'warnings' | 'nextSteps' | 'writePlan'> {
+  status: 'dry-run';
 }
 
 class ImportBlockedError extends Error implements RenderableCliError {
@@ -133,6 +138,17 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
     }, options.json === true);
   }
 
+  if (options.dryRun) {
+    const report: DryRunImportReport = {
+      status: 'dry-run',
+      warnings: plan.warnings,
+      nextSteps: plan.nextSteps,
+      writePlan: plan.writePlan,
+    };
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
   const result = await executeImport({ pkg, plan });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -145,6 +161,7 @@ export function registerImportCommand(command: Command): void {
     .option('--agent-id <id>', 'Target agent id override')
     .option('--config <path>', 'Target OpenClaw config path')
     .option('--force', 'Overwrite an existing target workspace')
+    .option('--dry-run', 'Print the import plan and exit without writing files')
     .option('--json', 'Emit blocked import details as JSON on failure')
     .action(runImport);
 }
