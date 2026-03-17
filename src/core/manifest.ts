@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { EXPORT_MODE, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE, SKILLS_MODE } from './constants';
-import type { AgentDefinition, ExportArtifacts, ExportReport, PackageManifest, SkillsManifest, WorkspaceScanResult } from './types';
+import type {
+  AgentDefinition,
+  ExportArtifacts,
+  ExportReport,
+  PackageManifest,
+  SkillsManifest,
+  WorkspaceScanResult,
+} from './types';
 
 export function buildManifest(params: {
   packageName: string;

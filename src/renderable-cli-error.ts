@@ -6,10 +6,12 @@ export interface RenderableCliError {
 }
 
 export function isRenderableCliError(error: unknown): error is RenderableCliError {
-  return typeof error === 'object'
-    && error !== null
-    && renderableCliErrorBrand in error
-    && error[renderableCliErrorBrand] === true
-    && 'render' in error
-    && typeof error.render === 'function';
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    renderableCliErrorBrand in error &&
+    error[renderableCliErrorBrand] === true &&
+    'render' in error &&
+    typeof error.render === 'function'
+  );
 }

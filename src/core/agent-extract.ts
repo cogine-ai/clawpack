@@ -1,8 +1,11 @@
 import path from 'node:path';
-import type { AgentDefinition } from './types';
 import { extractPortableAgentDefinition, loadOpenClawConfig } from './openclaw-config';
+import type { AgentDefinition } from './types';
 
-export async function extractAgentDefinition(workspacePath: string, options: { configPath?: string; agentId?: string } = {}): Promise<AgentDefinition> {
+export async function extractAgentDefinition(
+  workspacePath: string,
+  options: { configPath?: string; agentId?: string } = {},
+): Promise<AgentDefinition> {
   try {
     const loaded = await loadOpenClawConfig({ configPath: options.configPath, cwd: workspacePath });
     return extractPortableAgentDefinition({

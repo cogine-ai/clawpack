@@ -29,10 +29,21 @@ test('export --archive produces a .ocpkg.tar.gz file', async () => {
 test('export --archive output has correct .ocpkg.tar.gz suffix and CLI reports archive path', async () => {
   await rm(archiveOutput, { force: true });
 
-  const { stdout } = await runCli(['export', '--workspace', fixture, '--out', dirOutput, '--archive', '--json']);
+  const { stdout } = await runCli([
+    'export',
+    '--workspace',
+    fixture,
+    '--out',
+    dirOutput,
+    '--archive',
+    '--json',
+  ]);
   const result = JSON.parse(stdout);
 
-  assert.ok(result.packageRoot.endsWith('.ocpkg.tar.gz'), 'packageRoot should end with .ocpkg.tar.gz');
+  assert.ok(
+    result.packageRoot.endsWith('.ocpkg.tar.gz'),
+    'packageRoot should end with .ocpkg.tar.gz',
+  );
   assert.equal(result.status, 'ok');
   assert.ok(result.fileCount > 0);
 });
@@ -43,7 +54,9 @@ test('readPackage detects and extracts .tar.gz archive', async () => {
 
   let capturedTempDir: string | undefined;
   const pkg = await readPackage(archiveOutput, {
-    onTempDir(dir) { capturedTempDir = dir; },
+    onTempDir(dir) {
+      capturedTempDir = dir;
+    },
   });
 
   assert.ok(capturedTempDir, 'onTempDir callback should be called for archive input');
@@ -60,7 +73,9 @@ test('readPackage reads a directory without onTempDir callback', async () => {
 
   let tempDirCalled = false;
   const pkg = await readPackage(dirOutput, {
-    onTempDir() { tempDirCalled = true; },
+    onTempDir() {
+      tempDirCalled = true;
+    },
   });
 
   assert.equal(tempDirCalled, false, 'onTempDir should not be called for directory input');
@@ -74,15 +89,20 @@ test('archive roundtrip: export --archive -> import -> validate succeeds', async
 
   await runCli(['export', '--workspace', fixture, '--out', dirOutput, '--archive']);
   await runCli([
-    'import', archiveOutput,
-    '--target-workspace', archiveImportTarget,
-    '--agent-id', 'archive-test-agent',
+    'import',
+    archiveOutput,
+    '--target-workspace',
+    archiveImportTarget,
+    '--agent-id',
+    'archive-test-agent',
   ]);
 
   const { stdout } = await runCli([
     'validate',
-    '--target-workspace', archiveImportTarget,
-    '--agent-id', 'archive-test-agent',
+    '--target-workspace',
+    archiveImportTarget,
+    '--agent-id',
+    'archive-test-agent',
     '--json',
   ]);
 
@@ -121,9 +141,12 @@ test('archive import via CLI succeeds end-to-end', async () => {
   await runCli(['export', '--workspace', fixture, '--out', dirOutput, '--archive']);
 
   const { stdout: importStdout } = await runCli([
-    'import', archiveOutput,
-    '--target-workspace', archiveImportTarget,
-    '--agent-id', 'cleanup-test-agent',
+    'import',
+    archiveOutput,
+    '--target-workspace',
+    archiveImportTarget,
+    '--agent-id',
+    'cleanup-test-agent',
     '--json',
   ]);
 

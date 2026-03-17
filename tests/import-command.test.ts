@@ -25,10 +25,14 @@ async function prepareBlockedImportFixture() {
 
   await runCli([
     'export',
-    '--workspace', fixtureWorkspace,
-    '--config', fixtureConfig,
-    '--agent-id', 'supercoder',
-    '--out', blockedPackageRoot,
+    '--workspace',
+    fixtureWorkspace,
+    '--config',
+    fixtureConfig,
+    '--agent-id',
+    'supercoder',
+    '--out',
+    blockedPackageRoot,
   ]);
 }
 
@@ -48,8 +52,9 @@ async function runCliFailure(args: string[]) {
 test('runCliFailure rethrows assertion failures when the CLI succeeds', async () => {
   await assert.rejects(
     async () => runCliFailure(['--version']),
-    (error: unknown) => error instanceof assert.AssertionError
-      && /Expected CLI invocation to fail: --version/.test(error.message),
+    (error: unknown) =>
+      error instanceof assert.AssertionError &&
+      /Expected CLI invocation to fail: --version/.test(error.message),
   );
 });
 
@@ -59,7 +64,8 @@ test('blocked import prints clean human-readable output and exits non-zero', asy
   const error = await runCliFailure([
     'import',
     blockedPackageRoot,
-    '--target-workspace', blockedTargetRoot,
+    '--target-workspace',
+    blockedTargetRoot,
   ]);
 
   assert.equal(error.code, 1);
@@ -78,7 +84,8 @@ test('blocked import with --json prints clean JSON to stderr and exits non-zero'
   const error = await runCliFailure([
     'import',
     blockedPackageRoot,
-    '--target-workspace', blockedTargetRoot,
+    '--target-workspace',
+    blockedTargetRoot,
     '--json',
   ]);
 
@@ -90,8 +97,15 @@ test('blocked import with --json prints clean JSON to stderr and exits non-zero'
   const report = JSON.parse(error.stderr);
   assert.equal(report.status, 'blocked');
   assert.deepEqual(report.failed, []);
-  assert.deepEqual(report.requiredInputs.map((item: { key: string }) => item.key), ['agentId']);
+  assert.deepEqual(
+    report.requiredInputs.map((item: { key: string }) => item.key),
+    ['agentId'],
+  );
   assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
-  assert.ok(report.nextSteps.some((step: string) => step.includes('Review the imported identity and memory files')));
+  assert.ok(
+    report.nextSteps.some((step: string) =>
+      step.includes('Review the imported identity and memory files'),
+    ),
+  );
   assert.equal(report.writePlan.targetWorkspacePath, blockedTargetRoot);
 });

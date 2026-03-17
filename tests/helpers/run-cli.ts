@@ -12,5 +12,9 @@ export const runCliExecOptions = {
 };
 
 export async function runCli(args: string[]) {
-  return execFileAsync(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], runCliExecOptions);
+  return execFileAsync(
+    process.execPath,
+    ['--import', 'tsx', 'src/cli.ts', ...args],
+    runCliExecOptions,
+  );
 }

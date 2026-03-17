@@ -26,9 +26,7 @@ export async function runValidate(options: ValidateOptions): Promise<void> {
     return;
   }
 
-  const lines = [
-    `Validation: ${report.failed.length === 0 ? 'passed' : 'FAILED'}`,
-  ];
+  const lines = [`Validation: ${report.failed.length === 0 ? 'passed' : 'FAILED'}`];
 
   pushSection(lines, 'Passed', report.passed);
   pushSection(lines, 'Warnings', report.warnings);

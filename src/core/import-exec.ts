@@ -1,12 +1,17 @@
 import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import type { ImportPlan, ImportResult, ReadPackageResult } from './types';
 import { writeJsonFile } from '../utils/json';
 import { upsertPortableAgentDefinition } from './openclaw-config';
+import type { ImportPlan, ImportResult, ReadPackageResult } from './types';
 
-export async function executeImport(params: { pkg: ReadPackageResult; plan: ImportPlan }): Promise<ImportResult> {
+export async function executeImport(params: {
+  pkg: ReadPackageResult;
+  plan: ImportPlan;
+}): Promise<ImportResult> {
   if (!params.plan.canProceed) {
-    throw new Error(`Import plan cannot proceed: ${params.plan.failed.concat(params.plan.requiredInputs.map((item) => item.key)).join(', ')}`);
+    throw new Error(
+      `Import plan cannot proceed: ${params.plan.failed.concat(params.plan.requiredInputs.map((item) => item.key)).join(', ')}`,
+    );
   }
 
   if (params.plan.writePlan.overwriteExisting) {
@@ -21,7 +26,10 @@ export async function executeImport(params: { pkg: ReadPackageResult; plan: Impo
   }
 
   await mkdir(params.plan.writePlan.metadataDirectory, { recursive: true });
-  const agentRecordPath = path.join(params.plan.writePlan.metadataDirectory, 'agent-definition.json');
+  const agentRecordPath = path.join(
+    params.plan.writePlan.metadataDirectory,
+    'agent-definition.json',
+  );
   const importRecordPath = path.join(params.plan.writePlan.metadataDirectory, 'import-result.json');
 
   const configFiles: string[] = [];

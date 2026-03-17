@@ -17,7 +17,9 @@ export async function scanWorkspace(workspacePath: string): Promise<WorkspaceSca
       includedFiles.push({
         relativePath: file,
         absolutePath,
-        required: !OPTIONAL_WORKSPACE_FILES.includes(file as (typeof OPTIONAL_WORKSPACE_FILES)[number]),
+        required: !OPTIONAL_WORKSPACE_FILES.includes(
+          file as (typeof OPTIONAL_WORKSPACE_FILES)[number],
+        ),
       });
     } catch {
       if (OPTIONAL_WORKSPACE_FILES.includes(file as (typeof OPTIONAL_WORKSPACE_FILES)[number])) {
@@ -28,7 +30,9 @@ export async function scanWorkspace(workspacePath: string): Promise<WorkspaceSca
 
   for (const entry of entries) {
     if (entry.name === 'memory' && entry.isDirectory()) {
-      const memoryEntries = await readdir(path.join(workspacePath, 'memory'), { withFileTypes: true });
+      const memoryEntries = await readdir(path.join(workspacePath, 'memory'), {
+        withFileTypes: true,
+      });
       for (const memoryEntry of memoryEntries) {
         if (memoryEntry.isFile() && memoryEntry.name.endsWith('.md')) {
           excludedFiles.push({

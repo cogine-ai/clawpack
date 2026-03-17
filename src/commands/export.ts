@@ -26,7 +26,8 @@ export async function runExport(options: ExportOptions): Promise<void> {
     configPath: options.config,
     agentId: options.agentId,
   });
-  const packageName = options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
+  const packageName =
+    options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
 
   const writeParams = {
     outputPath: path.resolve(options.out),
@@ -52,12 +53,14 @@ export async function runExport(options: ExportOptions): Promise<void> {
     return;
   }
 
-  console.log([
-    'Export complete',
-    `  Package: ${report.packageRoot}`,
-    `  Manifest: ${report.manifestPath}`,
-    `  Files: ${report.fileCount}`,
-  ].join('\n'));
+  console.log(
+    [
+      'Export complete',
+      `  Package: ${report.packageRoot}`,
+      `  Manifest: ${report.manifestPath}`,
+      `  Files: ${report.fileCount}`,
+    ].join('\n'),
+  );
 }
 
 export function registerExportCommand(command: Command): void {
