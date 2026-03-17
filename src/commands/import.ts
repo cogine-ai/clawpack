@@ -18,13 +18,11 @@ interface RenderableCliError {
   render(): string;
 }
 
-interface BlockedImportReport {
+interface BlockedImportReport extends Pick<
+  ImportPlan,
+  'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'
+> {
   status: 'blocked';
-  failed: ImportPlan['failed'];
-  requiredInputs: ImportPlan['requiredInputs'];
-  warnings: ImportPlan['warnings'];
-  nextSteps: ImportPlan['nextSteps'];
-  writePlan: ImportPlan['writePlan'];
 }
 
 class ImportBlockedError extends Error implements RenderableCliError {
