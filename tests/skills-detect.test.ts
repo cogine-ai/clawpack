@@ -51,6 +51,28 @@ Use the skill \`brainstorming\` before adding major features.
   assert.deepEqual(result.referencedSkills, ['brainstorming']);
 });
 
+test('detectSkills requires paired backticks for verb-style skill references', async () => {
+  await rm(tempWorkspace, { recursive: true, force: true });
+  await mkdir(tempWorkspace, { recursive: true });
+  await writeRequiredWorkspaceFiles(tempWorkspace, {
+    'AGENTS.md': `# AGENTS
+Use the skill brainstorming before adding major features.
+Use the skill \`brainstorming before adding major features.
+Use the skill \`brainstorming\` before adding major features.
+`,
+    'SOUL.md': `# SOUL
+Install skill dependencies before running tests.
+Using the skill database adapter is fine.
+This requires the skill github for PR checks.
+This requires the skill \`github\` for PR checks.
+`,
+  });
+
+  const scan = await scanWorkspace(tempWorkspace);
+  const result = await detectSkills(scan);
+  assert.deepEqual(result.referencedSkills, ['brainstorming', 'github']);
+});
+
 test('detectSkills notes workspace-local skills directory presence', async () => {
   await rm(tempWorkspace, { recursive: true, force: true });
   await mkdir(path.join(tempWorkspace, 'skills', 'demo-skill'), { recursive: true });
