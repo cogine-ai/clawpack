@@ -1,11 +1,13 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { validateImportedWorkspace } from '../core/validate';
+import { pushSection } from '../utils/output';
 
 interface ValidateOptions {
   targetWorkspace: string;
   agentId?: string;
   config?: string;
+  json?: boolean;
 }
 
 export async function runValidate(options: ValidateOptions): Promise<void> {
@@ -19,7 +21,21 @@ export async function runValidate(options: ValidateOptions): Promise<void> {
     targetConfigPath: options.config ? path.resolve(options.config) : undefined,
   });
 
-  console.log(JSON.stringify(report, null, 2));
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  const lines = [
+    `Validation: ${report.failed.length === 0 ? 'passed' : 'FAILED'}`,
+  ];
+
+  pushSection(lines, 'Passed', report.passed);
+  pushSection(lines, 'Warnings', report.warnings);
+  pushSection(lines, 'Failed', report.failed);
+  pushSection(lines, 'Next steps', report.nextSteps);
+
+  console.log(lines.join('\n'));
 }
 
 export function registerValidateCommand(command: Command): void {
@@ -28,5 +44,6 @@ export function registerValidateCommand(command: Command): void {
     .requiredOption('--target-workspace <path>', 'Imported target workspace path')
     .option('--agent-id <id>', 'Expected target agent id')
     .option('--config <path>', 'Target OpenClaw config path for consistency checks')
+    .option('--json', 'Emit the full machine-readable JSON report')
     .action(runValidate);
 }

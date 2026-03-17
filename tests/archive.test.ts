@@ -29,7 +29,7 @@ test('export --archive produces a .ocpkg.tar.gz file', async () => {
 test('export --archive output has correct .ocpkg.tar.gz suffix and CLI reports archive path', async () => {
   await rm(archiveOutput, { force: true });
 
-  const { stdout } = await runCli(['export', '--workspace', fixture, '--out', dirOutput, '--archive']);
+  const { stdout } = await runCli(['export', '--workspace', fixture, '--out', dirOutput, '--archive', '--json']);
   const result = JSON.parse(stdout);
 
   assert.ok(result.packageRoot.endsWith('.ocpkg.tar.gz'), 'packageRoot should end with .ocpkg.tar.gz');
@@ -83,6 +83,7 @@ test('archive roundtrip: export --archive -> import -> validate succeeds', async
     'validate',
     '--target-workspace', archiveImportTarget,
     '--agent-id', 'archive-test-agent',
+    '--json',
   ]);
 
   const report = JSON.parse(stdout);
@@ -123,6 +124,7 @@ test('archive import via CLI succeeds end-to-end', async () => {
     'import', archiveOutput,
     '--target-workspace', archiveImportTarget,
     '--agent-id', 'cleanup-test-agent',
+    '--json',
   ]);
 
   const importResult = JSON.parse(importStdout);

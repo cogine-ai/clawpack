@@ -199,6 +199,7 @@ test('export/import/validate uses fixture config and persists agent into target 
     'validate',
     '--target-workspace', importWorkspace,
     '--agent-id', 'supercoder-imported',
+    '--json',
   ]);
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
