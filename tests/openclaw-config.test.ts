@@ -163,7 +163,7 @@ test('inspect command defaults to human-readable output and supports --json', as
   assert.ok(report.excludedFiles.some((entry: { relativePath: string }) => entry.relativePath === 'memory/2026-03-16.md'));
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
-  assert.ok(report.skills.referencedSkills.includes('github'));
+  assert.deepEqual(report.skills.referencedSkills, ['brainstorming']);
   assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
 });
 
