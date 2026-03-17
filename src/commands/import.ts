@@ -4,7 +4,7 @@ import { executeImport } from '../core/import-exec';
 import { planImport } from '../core/import-plan';
 import { discoverOpenClawConfig } from '../core/openclaw-config';
 import { cleanupTempDir, readPackage } from '../core/package-read';
-import type { ImportPlan } from '../core/types';
+import type { BlockedImportPlan } from '../core/types';
 import { type RenderableCliError, renderableCliErrorBrand } from '../renderable-cli-error';
 import { pushSection } from '../utils/output';
 
@@ -17,7 +17,7 @@ interface ImportOptions {
 }
 
 interface BlockedImportReport
-  extends Pick<ImportPlan, 'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'> {
+  extends Pick<BlockedImportPlan, 'failed' | 'requiredInputs' | 'warnings' | 'nextSteps' | 'writePlan'> {
   status: 'blocked';
 }
 

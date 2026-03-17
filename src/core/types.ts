@@ -139,14 +139,25 @@ export interface ImportWritePlan {
   };
 }
 
-export interface ImportPlan {
-  canProceed: boolean;
+interface ImportPlanBase {
   requiredInputs: ImportHints['requiredInputs'];
   warnings: string[];
   failed: string[];
   nextSteps: string[];
   writePlan: ImportWritePlan;
 }
+
+export interface BlockedImportPlan extends ImportPlanBase {
+  canProceed: false;
+}
+
+export interface ExecutableImportPlan extends ImportPlanBase {
+  canProceed: true;
+  requiredInputs: [];
+  failed: [];
+}
+
+export type ImportPlan = BlockedImportPlan | ExecutableImportPlan;
 
 export interface ImportResult {
   status: 'ok';
