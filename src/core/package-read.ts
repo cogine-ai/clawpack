@@ -1,9 +1,52 @@
-import { access } from 'node:fs/promises';
+import { access, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { cleanupTempDir, extractArchive, isArchivePath } from './archive';
 import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
 import { checksumFile } from './checksums';
 import type { ExportReport, ImportHints, PackageManifest, ReadPackageResult, SkillsManifest, AgentDefinition } from './types';
 import { readJsonFile } from '../utils/json';
+
+export interface ReadPackageOptions {
+  onTempDir?: (tempDir: string) => void;
+}
+
+/**
+ * Reads an .ocpkg package from either a directory or a .tar.gz archive.
+ * When the input is an archive, it extracts to a temp directory and calls
+ * `options.onTempDir` so the caller can schedule cleanup.
+ */
+export async function readPackage(
+  packagePath: string,
+  options?: ReadPackageOptions,
+): Promise<ReadPackageResult> {
+  const resolved = path.resolve(packagePath);
+  const fileStat = await stat(resolved);
+
+  if (fileStat.isFile() && isArchivePath(resolved)) {
+    const tempDir = await extractArchive(resolved);
+    options?.onTempDir?.(tempDir);
+
+    const entries = await findPackageRoot(tempDir);
+    return readPackageDirectory(entries);
+  }
+
+  return readPackageDirectory(resolved);
+}
+
+async function findPackageRoot(extractedDir: string): Promise<string> {
+  const { readdir } = await import('node:fs/promises');
+  const entries = await readdir(extractedDir);
+  if (entries.length === 1) {
+    const candidate = path.join(extractedDir, entries[0]);
+    const candidateStat = await stat(candidate);
+    if (candidateStat.isDirectory()) {
+      return candidate;
+    }
+  }
+  return extractedDir;
+}
+
+export { cleanupTempDir } from './archive';
 
 export async function readPackageDirectory(packageRoot: string): Promise<ReadPackageResult> {
   const resolvedRoot = path.resolve(packageRoot);

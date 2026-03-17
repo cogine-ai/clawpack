@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "commander": "^13.1.0",
-    "strip-json-comments": "^5.0.3"
+    "strip-json-comments": "^5.0.3",
+    "tar": "^7.5.11"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
