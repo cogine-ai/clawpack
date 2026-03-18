@@ -20,6 +20,8 @@ export function buildManifest(params: {
   openclawVersion?: string;
   metadata?: PackageManifest['metadata'];
   checksums?: Record<string, string>;
+  hasBindings?: boolean;
+  hasCronJobs?: boolean;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
   return {
@@ -35,15 +37,19 @@ export function buildManifest(params: {
     metadata: params.metadata ?? buildPackageMetadata(params.checksums ?? {}),
     includes: {
       workspaceFiles: params.scan.includedFiles.map((file) => file.relativePath),
+      bootstrapFiles: params.scan.includedFiles
+        .filter((file) => file.isBootstrap)
+        .map((file) => file.relativePath),
       dailyMemory: false,
       skills: SKILLS_MODE,
       agentDefinition: true,
+      bindings: params.hasBindings ?? false,
+      cronJobs: params.hasCronJobs ?? false,
     },
     excludes: {
       secrets: true,
       sessionState: true,
-      channelBindings: true,
-      globalExtensions: true,
+      connectionState: true,
     },
     compatibility: {
       minFormatVersion: PACKAGE_FORMAT_VERSION,
@@ -63,8 +69,10 @@ export function buildExportReport(params: {
     packageName: params.packageName,
     workspacePath: params.workspacePath,
     includedFiles: params.scan.includedFiles.map((file) => file.relativePath),
+    bootstrapFiles: params.scan.includedFiles
+      .filter((file) => file.isBootstrap)
+      .map((file) => file.relativePath),
     excludedFiles: params.scan.excludedFiles,
-    ignoredFiles: params.scan.ignoredFiles,
     warnings: params.warnings ?? [],
     skills: params.skills,
   };
@@ -79,6 +87,8 @@ export function buildExportArtifacts(params: {
   openclawVersion?: string;
   checksums: Record<string, string>;
   warnings?: string[];
+  hasBindings?: boolean;
+  hasCronJobs?: boolean;
 }): ExportArtifacts {
   return {
     manifest: buildManifest(params),

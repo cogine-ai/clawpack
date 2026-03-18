@@ -1,59 +1,76 @@
-import { access, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { ALLOWED_WORKSPACE_FILES, OPTIONAL_WORKSPACE_FILES } from './constants';
+import { BOOTSTRAP_FILES, EXCLUDED_DIRECTORIES, EXCLUDED_PATTERNS } from './constants';
 import type { WorkspaceScanResult } from './types';
 
 export async function scanWorkspace(workspacePath: string): Promise<WorkspaceScanResult> {
-  const entries = await readdir(workspacePath, { withFileTypes: true });
   const includedFiles = [] as WorkspaceScanResult['includedFiles'];
   const excludedFiles = [] as WorkspaceScanResult['excludedFiles'];
-  const missingOptionalFiles: string[] = [];
-  const ignoredFiles: string[] = [];
 
-  for (const file of ALLOWED_WORKSPACE_FILES) {
-    const absolutePath = path.join(workspacePath, file);
-    try {
-      await access(absolutePath);
-      includedFiles.push({
-        relativePath: file,
-        absolutePath,
-        required: !OPTIONAL_WORKSPACE_FILES.includes(
-          file as (typeof OPTIONAL_WORKSPACE_FILES)[number],
-        ),
-      });
-    } catch {
-      if (OPTIONAL_WORKSPACE_FILES.includes(file as (typeof OPTIONAL_WORKSPACE_FILES)[number])) {
-        missingOptionalFiles.push(file);
-      }
-    }
-  }
-
-  for (const entry of entries) {
-    if (entry.name === 'memory' && entry.isDirectory()) {
-      const memoryEntries = await readdir(path.join(workspacePath, 'memory'), {
-        withFileTypes: true,
-      });
-      for (const memoryEntry of memoryEntries) {
-        if (memoryEntry.isFile() && memoryEntry.name.endsWith('.md')) {
-          excludedFiles.push({
-            relativePath: path.posix.join('memory', memoryEntry.name),
-            reason: 'Excluded by default daily memory policy',
-          });
-        }
-      }
-      continue;
-    }
-
-    if (!ALLOWED_WORKSPACE_FILES.includes(entry.name as (typeof ALLOWED_WORKSPACE_FILES)[number])) {
-      ignoredFiles.push(entry.name);
-    }
-  }
+  await collectFiles(workspacePath, '', includedFiles, excludedFiles);
 
   return {
     workspacePath,
     includedFiles: includedFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
     excludedFiles: excludedFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    missingOptionalFiles: missingOptionalFiles.sort(),
-    ignoredFiles: ignoredFiles.sort(),
   };
+}
+
+async function collectFiles(
+  rootPath: string,
+  relativeDirPath: string,
+  included: WorkspaceScanResult['includedFiles'],
+  excluded: WorkspaceScanResult['excludedFiles'],
+): Promise<void> {
+  const currentDir = relativeDirPath
+    ? path.join(rootPath, relativeDirPath)
+    : rootPath;
+
+  const entries = await readdir(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const relativePath = relativeDirPath
+      ? path.posix.join(relativeDirPath, entry.name)
+      : entry.name;
+
+    if (entry.isDirectory()) {
+      if (EXCLUDED_DIRECTORIES.has(entry.name)) {
+        excluded.push({
+          relativePath: `${relativePath}/`,
+          reason: `Excluded directory: ${entry.name}`,
+        });
+        continue;
+      }
+
+      const dirExclusion = getExclusionReason(relativePath, entry.name, true);
+      if (dirExclusion) {
+        excluded.push({ relativePath: `${relativePath}/`, reason: dirExclusion });
+        continue;
+      }
+
+      await collectFiles(rootPath, relativePath, included, excluded);
+      continue;
+    }
+
+    if (!entry.isFile()) continue;
+
+    const fileExclusion = getExclusionReason(relativePath, entry.name, false);
+    if (fileExclusion) {
+      excluded.push({ relativePath, reason: fileExclusion });
+      continue;
+    }
+
+    const absolutePath = path.join(rootPath, relativePath);
+    const isBootstrap = BOOTSTRAP_FILES.has(entry.name) && !relativeDirPath;
+
+    included.push({ relativePath, absolutePath, isBootstrap });
+  }
+}
+
+function getExclusionReason(relativePath: string, name: string, isDir: boolean): string | null {
+  for (const pattern of EXCLUDED_PATTERNS) {
+    if (pattern.dirOnly && !isDir) continue;
+    if (pattern.test(relativePath, name)) return pattern.reason;
+  }
+  return null;
 }

@@ -135,6 +135,12 @@ export function extractPortableAgentDefinition(params: {
     toTitleCase(selectedAgentId.replace(/-/g, ' '));
   const identityName = sourceAgent.identity?.name ?? topLevelIdentityName ?? suggestedName;
 
+  const { identity: _identity, name: _name, id: _id, workspace: _workspace, default: _default, ...extraFields } = sourceAgent;
+
+  const modelConfig = sourceAgent.model?.default
+    ? { default: sourceAgent.model.default, ...sourceAgent.model }
+    : undefined;
+
   return {
     agent: {
       suggestedId: selectedAgentId,
@@ -143,17 +149,37 @@ export function extractPortableAgentDefinition(params: {
         suggestedBasename: workspaceBasename,
       },
       identity: {
+        ...(sourceAgent.identity ?? {}),
         name: identityName,
       },
-      model: sourceAgent.model?.default ? { default: sourceAgent.model.default } : undefined,
+      model: modelConfig,
+      ...(extraFields.tools ? { tools: extraFields.tools as AgentDefinition['agent']['tools'] } : {}),
+      ...(extraFields.skills ? { skills: extraFields.skills as string[] } : {}),
+      ...(extraFields.heartbeat ? { heartbeat: extraFields.heartbeat as Record<string, unknown> } : {}),
+      ...(extraFields.sandbox ? { sandbox: extraFields.sandbox as Record<string, unknown> } : {}),
+      ...(extraFields.runtime ? { runtime: extraFields.runtime as Record<string, unknown> } : {}),
+      ...(extraFields.params ? { params: extraFields.params as Record<string, unknown> } : {}),
+      ...(extraFields.subagents ? { subagents: extraFields.subagents as Record<string, unknown> } : {}),
+      ...(extraFields.groupChat ? { groupChat: extraFields.groupChat as Record<string, unknown> } : {}),
+      ...(extraFields.humanDelay ? { humanDelay: extraFields.humanDelay as Record<string, unknown> } : {}),
+      ...(extraFields.memorySearch ? { memorySearch: extraFields.memorySearch as Record<string, unknown> } : {}),
     },
     fieldClassification: {
       'agent.suggestedId': 'requiresInputOnImport',
       'agent.suggestedName': 'portable',
       'agent.workspace.suggestedBasename': 'requiresInputOnImport',
-      'agent.identity.name': 'portable',
-      ...(sourceAgent.model?.default ? { 'agent.model.default': 'portable' } : {}),
-      'agent.channelBindings': 'excluded',
+      'agent.identity': 'portable',
+      ...(modelConfig ? { 'agent.model': 'portable' } : {}),
+      ...(extraFields.tools ? { 'agent.tools': 'portable' } : {}),
+      ...(extraFields.skills ? { 'agent.skills': 'portable' } : {}),
+      ...(extraFields.heartbeat ? { 'agent.heartbeat': 'portable' } : {}),
+      ...(extraFields.sandbox ? { 'agent.sandbox': 'portable' } : {}),
+      ...(extraFields.runtime ? { 'agent.runtime': 'portable' } : {}),
+      ...(extraFields.params ? { 'agent.params': 'portable' } : {}),
+      ...(extraFields.subagents ? { 'agent.subagents': 'requiresInputOnImport' } : {}),
+      ...(extraFields.groupChat ? { 'agent.groupChat': 'requiresInputOnImport' } : {}),
+      ...(extraFields.humanDelay ? { 'agent.humanDelay': 'portable' } : {}),
+      ...(extraFields.memorySearch ? { 'agent.memorySearch': 'portable' } : {}),
       'agent.secrets': 'excluded',
     },
     notes: [`Portable agent definition derived from OpenClaw config at ${params.configPath}.`],

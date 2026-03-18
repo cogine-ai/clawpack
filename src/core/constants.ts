@@ -1,4 +1,5 @@
-export const PACKAGE_FORMAT_VERSION = 1;
+export const PACKAGE_FORMAT_VERSION = 2;
+export const MIN_READABLE_FORMAT_VERSION = 1;
 export const PACKAGE_TYPE = 'openclaw-agent-template';
 export const EXPORT_MODE = 'template';
 
@@ -11,14 +12,36 @@ export const REQUIRED_WORKSPACE_FILES = [
   'MEMORY.md',
 ] as const;
 
-export const OPTIONAL_WORKSPACE_FILES = ['BOOTSTRAP.md', 'HEARTBEAT.md'] as const;
+export const BOOTSTRAP_FILES = new Set([
+  'AGENTS.md',
+  'SOUL.md',
+  'TOOLS.md',
+  'IDENTITY.md',
+  'USER.md',
+  'HEARTBEAT.md',
+  'BOOTSTRAP.md',
+  'MEMORY.md',
+  'memory.md',
+]);
 
-export const ALLOWED_WORKSPACE_FILES = [
-  ...REQUIRED_WORKSPACE_FILES,
-  ...OPTIONAL_WORKSPACE_FILES,
-] as const;
+export const EXCLUDED_DIRECTORIES = new Set([
+  '.git',
+  '.openclaw',
+  'node_modules',
+]);
 
-export const DEFAULT_EXCLUDED_GLOBS = ['memory/*.md'];
+export interface ExclusionPattern {
+  test: (relativePath: string, name: string) => boolean;
+  reason: string;
+  dirOnly?: boolean;
+}
+
+export const EXCLUDED_PATTERNS: ExclusionPattern[] = [
+  {
+    test: (relativePath) => /^memory\/.*\.md$/.test(relativePath),
+    reason: 'Excluded by daily memory policy',
+  },
+];
 
 export const SKILLS_MODE = 'manifest-only' as const;
 

@@ -14,9 +14,20 @@ export async function planImport(params: {
   const failed: string[] = [];
   const warnings = [...params.pkg.importHints.warnings];
   const nextSteps = [
-    'Channel bindings are not restored automatically in v1.',
     'Review the imported identity and memory files before using the agent.',
   ];
+
+  if (params.pkg.bindings && params.pkg.bindings.length > 0) {
+    nextSteps.push('Channel bindings were included in the package. Verify channel connections on the target instance.');
+  } else {
+    nextSteps.push('Channel bindings were not included. Configure channel bindings manually on the target instance.');
+  }
+
+  if (params.pkg.cronJobs && params.pkg.cronJobs.length > 0) {
+    nextSteps.push('Cron jobs were included in the package. Verify cron scheduling on the target instance.');
+  } else {
+    nextSteps.push('Cron jobs were not included. Create cron entries manually if scheduled tasks are needed.');
+  }
 
   if (!params.targetWorkspacePath) {
     requiredInputs.push({

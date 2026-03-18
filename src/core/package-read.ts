@@ -3,9 +3,11 @@ import path from 'node:path';
 import { readJsonFile } from '../utils/json';
 import { extractArchive, isArchivePath } from './archive';
 import { checksumFile } from './checksums';
-import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
+import { MIN_READABLE_FORMAT_VERSION, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
 import type {
+  AgentBindingDefinition,
   AgentDefinition,
+  CronJobDefinition,
   ExportReport,
   ImportHints,
   PackageManifest,
@@ -17,11 +19,6 @@ export interface ReadPackageOptions {
   onTempDir?: (tempDir: string) => void;
 }
 
-/**
- * Reads an .ocpkg package from either a directory or a .tar.gz archive.
- * When the input is an archive, it extracts to a temp directory and calls
- * `options.onTempDir` so the caller can schedule cleanup.
- */
 export async function readPackage(
   packagePath: string,
   options?: ReadPackageOptions,
@@ -78,9 +75,17 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   if (manifest.packageType !== PACKAGE_TYPE) {
     throw new Error(`Unsupported package type: ${manifest.packageType}`);
   }
-  if (manifest.formatVersion !== PACKAGE_FORMAT_VERSION) {
+  if (typeof manifest.formatVersion !== 'number' || !Number.isInteger(manifest.formatVersion)) {
+    throw new Error(`Invalid format version: expected integer, got ${JSON.stringify(manifest.formatVersion)}`);
+  }
+  if (manifest.formatVersion < MIN_READABLE_FORMAT_VERSION || manifest.formatVersion > PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported format version: ${manifest.formatVersion}`);
   }
+
+  manifest.includes.bootstrapFiles ??= [];
+  manifest.includes.bindings ??= false;
+  manifest.includes.cronJobs ??= false;
+  manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
     path.join(resolvedRoot, 'config', 'agent.json'),
@@ -110,6 +115,23 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
+  const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
+  const cronPath = path.join(resolvedRoot, 'config', 'cron.json');
+
+  let bindings: AgentBindingDefinition[] | undefined;
+  if (manifest.includes.bindings) {
+    bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
+  } else {
+    bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
+  }
+
+  let cronJobs: CronJobDefinition[] | undefined;
+  if (manifest.includes.cronJobs) {
+    cronJobs = await readJsonFile<CronJobDefinition[]>(cronPath);
+  } else {
+    cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(cronPath);
+  }
+
   return {
     packageRoot: resolvedRoot,
     manifest,
@@ -119,5 +141,17 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     checksums,
     exportReport,
     workspaceFiles,
+    bindings,
+    cronJobs,
   };
+}
+
+async function readOptionalJsonFile<T>(filePath: string): Promise<T | undefined> {
+  try {
+    await access(filePath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw err;
+  }
+  return readJsonFile<T>(filePath);
 }

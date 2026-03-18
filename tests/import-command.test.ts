@@ -84,7 +84,7 @@ test('blocked import with --json prints clean JSON to stderr and exits non-zero'
   assert.equal(report.status, 'blocked');
   assert.deepEqual(report.failed, []);
   assert.deepEqual(report.requiredInputs.map((item: { key: string }) => item.key), ['agentId']);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('Review the imported identity and memory files')));
   assert.equal(report.writePlan.targetWorkspacePath, blockedTargetRoot);
 });

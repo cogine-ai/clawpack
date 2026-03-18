@@ -181,9 +181,9 @@ test('extractPortableAgentDefinition extracts from agents.list fixture', async (
   assert.equal(portable.agent.suggestedName, 'Supercoder');
   assert.equal(portable.agent.workspace.suggestedBasename, 'source-workspace');
   assert.ok(portable.agent.model, 'portable agent model should exist');
-  assert.equal(portable.agent.model.default, 'openai-codex/gpt-5.4');
+  assert.equal(portable.agent.model?.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
-  assert.equal(portable.fieldClassification['agent.channelBindings'], 'excluded');
+  assert.equal(portable.fieldClassification['agent.secrets'], 'excluded');
 });
 
 test('extractPortableAgentDefinition extracts from single-agent config', async () => {
@@ -451,6 +451,7 @@ test('inspect command defaults to human-readable output and supports --json', as
   assert.match(human.stdout, /Workspace:/);
   assert.match(human.stdout, /Portable agent definition:/);
   assert.match(human.stdout, /Included files \(/);
+  assert.match(human.stdout, /Bootstrap files \(/);
   assert.match(human.stdout, /Warnings:/);
   assert.equal(human.stdout.includes('{\n  "workspacePath"'), false);
 
@@ -476,7 +477,7 @@ test('inspect command defaults to human-readable output and supports --json', as
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
   assert.deepEqual(report.skills.referencedSkills, ['brainstorming']);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Channel bindings')));
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
 });
 
 // --- CLI integration: export/import/validate with config ---

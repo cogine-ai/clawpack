@@ -1,7 +1,7 @@
 export interface IncludedWorkspaceFile {
   relativePath: string;
   absolutePath: string;
-  required: boolean;
+  isBootstrap: boolean;
 }
 
 export interface ExcludedWorkspaceFile {
@@ -13,8 +13,6 @@ export interface WorkspaceScanResult {
   workspacePath: string;
   includedFiles: IncludedWorkspaceFile[];
   excludedFiles: ExcludedWorkspaceFile[];
-  missingOptionalFiles: string[];
-  ignoredFiles: string[];
 }
 
 export interface SkillsManifest {
@@ -22,6 +20,15 @@ export interface SkillsManifest {
   workspaceSkills: string[];
   referencedSkills: string[];
   notes: string[];
+}
+
+export interface AgentToolsConfig {
+  profile?: string;
+  allow?: string[];
+  alsoAllow?: string[];
+  deny?: string[];
+  byProvider?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface AgentDefinition {
@@ -33,13 +40,51 @@ export interface AgentDefinition {
     };
     identity: {
       name: string;
+      [key: string]: unknown;
     };
     model?: {
       default: string;
+      fallbacks?: string[];
+      [key: string]: unknown;
     };
+    tools?: AgentToolsConfig;
+    skills?: string[];
+    heartbeat?: Record<string, unknown>;
+    sandbox?: Record<string, unknown>;
+    runtime?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    subagents?: Record<string, unknown>;
+    groupChat?: Record<string, unknown>;
+    humanDelay?: Record<string, unknown>;
+    memorySearch?: Record<string, unknown>;
   };
   fieldClassification: Record<string, 'portable' | 'requiresInputOnImport' | 'excluded'>;
   notes: string[];
+}
+
+export interface AgentBindingDefinition {
+  type?: 'route' | 'acp';
+  agentId: string;
+  comment?: string;
+  match: {
+    channel: string;
+    accountId?: string;
+    peer?: { kind: string; id: string };
+    guildId?: string;
+    teamId?: string;
+    roles?: string[];
+  };
+  acp?: Record<string, unknown>;
+}
+
+/** All fields optional: clawpack transports cron definitions as-is from the source config without runtime validation. */
+export interface CronJobDefinition {
+  agentId?: string;
+  schedule?: string;
+  sessionTarget?: string;
+  payload?: Record<string, unknown>;
+  delivery?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface ImportHints {
@@ -75,15 +120,19 @@ export interface PackageManifest {
   };
   includes: {
     workspaceFiles: string[];
+    bootstrapFiles?: string[];
     dailyMemory: boolean;
     skills: 'manifest-only';
     agentDefinition: boolean;
+    bindings?: boolean;
+    cronJobs?: boolean;
   };
   excludes: {
     secrets: boolean;
     sessionState: boolean;
-    channelBindings: boolean;
-    globalExtensions: boolean;
+    channelBindings?: boolean;
+    globalExtensions?: boolean;
+    connectionState?: boolean;
   };
   compatibility: {
     minFormatVersion: number;
@@ -95,8 +144,8 @@ export interface ExportReport {
   packageName: string;
   workspacePath: string;
   includedFiles: string[];
+  bootstrapFiles: string[];
   excludedFiles: ExcludedWorkspaceFile[];
-  ignoredFiles: string[];
   warnings: string[];
   skills: SkillsManifest;
 }
@@ -131,6 +180,8 @@ export interface ReadPackageResult {
     relativePath: string;
     absolutePath: string;
   }>;
+  bindings?: AgentBindingDefinition[];
+  cronJobs?: CronJobDefinition[];
 }
 
 export interface ImportWritePlan {

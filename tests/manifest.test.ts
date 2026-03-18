@@ -36,12 +36,16 @@ test('manifest builder emits required fields and additive metadata', async () =>
     },
   });
 
-  assert.equal(manifest.formatVersion, 1);
+  assert.equal(manifest.formatVersion, 2);
   assert.equal(manifest.packageType, 'openclaw-agent-template');
   assert.equal(manifest.source.openclawVersion, '1.2.3');
   assert.equal(manifest.includes.skills, 'manifest-only');
   assert.equal(manifest.includes.dailyMemory, false);
-  assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
+  assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'notes.txt', 'SOUL.md', 'TOOLS.md', 'USER.md']);
+  assert.deepEqual(manifest.includes.bootstrapFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
+  assert.equal(manifest.includes.bindings, false);
+  assert.equal(manifest.includes.cronJobs, false);
+  assert.deepEqual(manifest.excludes, { secrets: true, sessionState: true, connectionState: true });
   assert.deepEqual(manifest.metadata, {
     createdAt: '2026-03-18T00:00:00.000Z',
     createdBy: {
@@ -97,8 +101,6 @@ const emptyScan: WorkspaceScanResult = {
   workspacePath: '/nonexistent',
   includedFiles: [],
   excludedFiles: [],
-  missingOptionalFiles: [],
-  ignoredFiles: [],
 };
 
 test('buildManifest handles empty scan result', () => {
@@ -111,7 +113,7 @@ test('buildManifest handles empty scan result', () => {
   });
 
   assert.deepEqual(manifest.includes.workspaceFiles, []);
-  assert.equal(manifest.formatVersion, 1);
+  assert.equal(manifest.formatVersion, 2);
   assert.equal(manifest.source.openclawVersion, 'unknown');
 });
 
