@@ -65,6 +65,8 @@ test('planImport refuses collisions by default and only allows overwrite with --
     force: true,
   });
   assert.equal(forced.canProceed, true);
+  assert.deepEqual(forced.requiredInputs, []);
+  assert.deepEqual(forced.failed, []);
   assert.equal(forced.writePlan.overwriteExisting, true);
 });
 
@@ -120,6 +122,8 @@ test('planImport preflights target config agent-id collisions and reports safer 
   });
 
   assert.equal(forced.canProceed, true);
+  assert.deepEqual(forced.requiredInputs, []);
+  assert.deepEqual(forced.failed, []);
   assert.ok(forced.warnings.some((warning) => warning.includes('will be overwritten')));
   assert.equal(forced.writePlan.summary.configAgentCollision, true);
 });

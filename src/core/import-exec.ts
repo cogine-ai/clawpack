@@ -1,19 +1,13 @@
 import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import type { ExecutableImportPlan, ImportResult, ReadPackageResult } from './types';
 import { writeJsonFile } from '../utils/json';
 import { upsertPortableAgentDefinition } from './openclaw-config';
-import type { ImportPlan, ImportResult, ReadPackageResult } from './types';
 
 export async function executeImport(params: {
   pkg: ReadPackageResult;
-  plan: ImportPlan;
+  plan: ExecutableImportPlan;
 }): Promise<ImportResult> {
-  if (!params.plan.canProceed) {
-    throw new Error(
-      `Import plan cannot proceed: ${params.plan.failed.concat(params.plan.requiredInputs.map((item) => item.key)).join(', ')}`,
-    );
-  }
-
   if (params.plan.writePlan.overwriteExisting) {
     await rm(params.plan.writePlan.targetWorkspacePath, { recursive: true, force: true });
   }

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { loadOpenClawConfig } from './openclaw-config';
-import type { ImportPlan, ReadPackageResult } from './types';
+import type { ImportHints, ImportPlan, ReadPackageResult } from './types';
 
 export async function planImport(params: {
   pkg: ReadPackageResult;
@@ -10,7 +10,7 @@ export async function planImport(params: {
   targetConfigPath?: string;
   force?: boolean;
 }): Promise<ImportPlan> {
-  const requiredInputs = [] as ImportPlan['requiredInputs'];
+  const requiredInputs: ImportHints['requiredInputs'] = [];
   const failed: string[] = [];
   const warnings = [...params.pkg.importHints.warnings];
   const nextSteps = [
@@ -94,8 +94,19 @@ export async function planImport(params: {
     },
   };
 
+  if (requiredInputs.length === 0 && failed.length === 0) {
+    return {
+      canProceed: true,
+      requiredInputs: [],
+      warnings,
+      failed: [],
+      nextSteps,
+      writePlan,
+    };
+  }
+
   return {
-    canProceed: requiredInputs.length === 0 && failed.length === 0,
+    canProceed: false,
     requiredInputs,
     warnings,
     failed,
