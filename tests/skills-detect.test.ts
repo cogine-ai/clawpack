@@ -154,7 +154,7 @@ test('detectSkills extracts skills from path-style references', async () => {
   try {
     const scan = await scanWorkspace(basePath);
     const result = await detectSkills(scan);
-    assert.ok(result.referencedSkills.includes('data-pipeline'));
+    assert.deepEqual(result.referencedSkills, ['data-pipeline']);
   } finally {
     await cleanupTempWorkspace(basePath);
   }

@@ -110,6 +110,10 @@ export function extractPortableAgentDefinition(params: {
   const workspaceBasename = path.basename(params.workspacePath);
   const fallbackId = workspaceBasename.replace(/^workspace-/, '');
 
+  // Resolution priority:
+  // 1. If agentId is given, look up by id via resolveAgentFromConfig
+  // 2. Otherwise, try to match by workspace path via findAgentByWorkspace
+  // 3. Final fallback: resolveAgentFromConfig with no agentId returns the default/first agent
   const resolved =
     (params.agentId
       ? resolveAgentFromConfig(params.config, params.agentId)

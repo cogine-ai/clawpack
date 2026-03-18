@@ -63,7 +63,8 @@ export async function createTempWorkspace(
 
   if (options?.symlinks) {
     for (const [linkName, target] of Object.entries(options.symlinks)) {
-      await symlink(target, path.join(basePath, linkName));
+      const resolvedTarget = path.isAbsolute(target) ? target : path.resolve(basePath, target);
+      await symlink(resolvedTarget, path.join(basePath, linkName));
     }
   }
 

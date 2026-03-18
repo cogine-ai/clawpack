@@ -135,9 +135,8 @@ test('planImport reports both missing targetWorkspacePath and targetAgentId as r
   const plan = await planImport({ pkg });
 
   assert.equal(plan.canProceed, false);
-  const keys = plan.requiredInputs.map((item) => item.key);
-  assert.ok(keys.includes('targetWorkspacePath'));
-  assert.ok(keys.includes('agentId'));
+  const keys = plan.requiredInputs.map((item) => item.key).sort();
+  assert.deepEqual(keys, ['agentId', 'targetWorkspacePath']);
 });
 
 test('planImport allows fresh workspace + no config collision without force', async () => {
@@ -214,5 +213,6 @@ test('planImport force overrides both workspace and config collision simultaneou
   assert.equal(plan.writePlan.overwriteExisting, true);
   assert.equal(plan.writePlan.summary.existingWorkspaceDetected, true);
   assert.equal(plan.writePlan.summary.configAgentCollision, true);
-  assert.ok(plan.warnings.length >= 2);
+  assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('--force')));
+  assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('config')));
 });

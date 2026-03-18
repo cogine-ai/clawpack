@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { checksumFile, checksumText } from '../src/core/checksums';
 
-const fixtureFile = path.resolve('tests/fixtures/source-workspace/AGENTS.md');
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const fixtureFile = path.join(testDir, 'fixtures', 'source-workspace', 'AGENTS.md');
 
 test('checksumText produces deterministic output for same input', () => {
   const input = 'hello world';
@@ -31,9 +33,9 @@ test('checksumFile computes hash of a fixture file', async () => {
   assert.equal(hash.length, 64);
 });
 
-test('checksumFile result matches checksumText of the same file content', async () => {
-  const content = await readFile(fixtureFile, 'utf8');
+test('checksumFile result matches hash of raw file bytes', async () => {
+  const rawBytes = await readFile(fixtureFile);
   const fileHash = await checksumFile(fixtureFile);
-  const textHash = checksumText(content);
-  assert.equal(fileHash, textHash);
+  const bytesHash = checksumText(rawBytes.toString('utf8'));
+  assert.equal(fileHash, bytesHash);
 });

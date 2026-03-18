@@ -37,6 +37,7 @@ test('scanWorkspace handles empty directory', async () => {
 
 test('scanWorkspace handles nonexistent path', async () => {
   const nonexistent = path.resolve('tests/tmp/ws-nonexistent-12345');
+  await rm(nonexistent, { recursive: true, force: true });
   await assert.rejects(
     async () => scanWorkspace(nonexistent),
     { code: 'ENOENT' },
