@@ -75,9 +75,17 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   if (manifest.packageType !== PACKAGE_TYPE) {
     throw new Error(`Unsupported package type: ${manifest.packageType}`);
   }
+  if (typeof manifest.formatVersion !== 'number' || !Number.isInteger(manifest.formatVersion)) {
+    throw new Error(`Invalid format version: expected integer, got ${JSON.stringify(manifest.formatVersion)}`);
+  }
   if (manifest.formatVersion < MIN_READABLE_FORMAT_VERSION || manifest.formatVersion > PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported format version: ${manifest.formatVersion}`);
   }
+
+  manifest.includes.bootstrapFiles ??= [];
+  manifest.includes.bindings ??= false;
+  manifest.includes.cronJobs ??= false;
+  manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
     path.join(resolvedRoot, 'config', 'agent.json'),
@@ -107,12 +115,22 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
-  const bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(
-    path.join(resolvedRoot, 'config', 'bindings.json'),
-  );
-  const cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(
-    path.join(resolvedRoot, 'config', 'cron.json'),
-  );
+  const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
+  const cronPath = path.join(resolvedRoot, 'config', 'cron.json');
+
+  let bindings: AgentBindingDefinition[] | undefined;
+  if (manifest.includes.bindings) {
+    bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
+  } else {
+    bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
+  }
+
+  let cronJobs: CronJobDefinition[] | undefined;
+  if (manifest.includes.cronJobs) {
+    cronJobs = await readJsonFile<CronJobDefinition[]>(cronPath);
+  } else {
+    cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(cronPath);
+  }
 
   return {
     packageRoot: resolvedRoot,

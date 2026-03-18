@@ -120,17 +120,19 @@ export interface PackageManifest {
   };
   includes: {
     workspaceFiles: string[];
-    bootstrapFiles: string[];
+    bootstrapFiles?: string[];
     dailyMemory: boolean;
     skills: 'manifest-only';
     agentDefinition: boolean;
-    bindings: boolean;
-    cronJobs: boolean;
+    bindings?: boolean;
+    cronJobs?: boolean;
   };
   excludes: {
     secrets: boolean;
     sessionState: boolean;
-    connectionState: boolean;
+    channelBindings?: boolean;
+    globalExtensions?: boolean;
+    connectionState?: boolean;
   };
   compatibility: {
     minFormatVersion: number;
