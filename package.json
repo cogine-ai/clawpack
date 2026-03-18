@@ -35,7 +35,10 @@
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   },
-  "repository": "https://github.com/cogine-ai/clawpack",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cogine-ai/clawpack.git"
+  },
   "homepage": "https://github.com/cogine-ai/clawpack",
   "bugs": "https://github.com/cogine-ai/clawpack/issues",
   "license": "MIT"
