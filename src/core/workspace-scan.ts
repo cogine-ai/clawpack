@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { BOOTSTRAP_FILES, EXCLUDED_DIRECTORIES, EXCLUDED_PATTERNS } from './constants';
 import type { WorkspaceScanResult } from './types';
@@ -42,11 +42,9 @@ async function collectFiles(
         continue;
       }
 
-      if (isExcludedByPattern(relativePath, entry.name, true)) {
-        excluded.push({
-          relativePath: `${relativePath}/`,
-          reason: matchedExclusionReason(relativePath, entry.name, true),
-        });
+      const dirExclusion = getExclusionReason(relativePath, entry.name, true);
+      if (dirExclusion) {
+        excluded.push({ relativePath: `${relativePath}/`, reason: dirExclusion });
         continue;
       }
 
@@ -56,11 +54,9 @@ async function collectFiles(
 
     if (!entry.isFile()) continue;
 
-    if (isExcludedByPattern(relativePath, entry.name, false)) {
-      excluded.push({
-        relativePath,
-        reason: matchedExclusionReason(relativePath, entry.name, false),
-      });
+    const fileExclusion = getExclusionReason(relativePath, entry.name, false);
+    if (fileExclusion) {
+      excluded.push({ relativePath, reason: fileExclusion });
       continue;
     }
 
@@ -71,18 +67,10 @@ async function collectFiles(
   }
 }
 
-function isExcludedByPattern(relativePath: string, name: string, isDir: boolean): boolean {
-  for (const pattern of EXCLUDED_PATTERNS) {
-    if (pattern.dirOnly && !isDir) continue;
-    if (pattern.test(relativePath, name)) return true;
-  }
-  return false;
-}
-
-function matchedExclusionReason(relativePath: string, name: string, isDir: boolean): string {
+function getExclusionReason(relativePath: string, name: string, isDir: boolean): string | null {
   for (const pattern of EXCLUDED_PATTERNS) {
     if (pattern.dirOnly && !isDir) continue;
     if (pattern.test(relativePath, name)) return pattern.reason;
   }
-  return 'Excluded by pattern';
+  return null;
 }

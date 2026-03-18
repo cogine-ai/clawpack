@@ -25,6 +25,8 @@ export async function planImport(params: {
 
   if (params.pkg.cronJobs && params.pkg.cronJobs.length > 0) {
     nextSteps.push('Cron jobs were included in the package. Verify cron scheduling on the target instance.');
+  } else {
+    nextSteps.push('Cron jobs were not included. Create cron entries manually if scheduled tasks are needed.');
   }
 
   if (!params.targetWorkspacePath) {

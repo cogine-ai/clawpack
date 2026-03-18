@@ -77,6 +77,7 @@ export interface AgentBindingDefinition {
   acp?: Record<string, unknown>;
 }
 
+/** All fields optional: clawpack transports cron definitions as-is from the source config without runtime validation. */
 export interface CronJobDefinition {
   agentId?: string;
   schedule?: string;

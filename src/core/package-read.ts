@@ -107,21 +107,12 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
-  let bindings: AgentBindingDefinition[] | undefined;
-  try {
-    await access(path.join(resolvedRoot, 'config', 'bindings.json'));
-    bindings = await readJsonFile<AgentBindingDefinition[]>(
-      path.join(resolvedRoot, 'config', 'bindings.json'),
-    );
-  } catch {}
-
-  let cronJobs: CronJobDefinition[] | undefined;
-  try {
-    await access(path.join(resolvedRoot, 'config', 'cron.json'));
-    cronJobs = await readJsonFile<CronJobDefinition[]>(
-      path.join(resolvedRoot, 'config', 'cron.json'),
-    );
-  } catch {}
+  const bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(
+    path.join(resolvedRoot, 'config', 'bindings.json'),
+  );
+  const cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(
+    path.join(resolvedRoot, 'config', 'cron.json'),
+  );
 
   return {
     packageRoot: resolvedRoot,
@@ -135,4 +126,14 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     bindings,
     cronJobs,
   };
+}
+
+async function readOptionalJsonFile<T>(filePath: string): Promise<T | undefined> {
+  try {
+    await access(filePath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw err;
+  }
+  return readJsonFile<T>(filePath);
 }
