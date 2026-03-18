@@ -3,9 +3,11 @@ import path from 'node:path';
 import { readJsonFile } from '../utils/json';
 import { extractArchive, isArchivePath } from './archive';
 import { checksumFile } from './checksums';
-import { PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
+import { MIN_READABLE_FORMAT_VERSION, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } from './constants';
 import type {
+  AgentBindingDefinition,
   AgentDefinition,
+  CronJobDefinition,
   ExportReport,
   ImportHints,
   PackageManifest,
@@ -17,11 +19,6 @@ export interface ReadPackageOptions {
   onTempDir?: (tempDir: string) => void;
 }
 
-/**
- * Reads an .ocpkg package from either a directory or a .tar.gz archive.
- * When the input is an archive, it extracts to a temp directory and calls
- * `options.onTempDir` so the caller can schedule cleanup.
- */
 export async function readPackage(
   packagePath: string,
   options?: ReadPackageOptions,
@@ -78,7 +75,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   if (manifest.packageType !== PACKAGE_TYPE) {
     throw new Error(`Unsupported package type: ${manifest.packageType}`);
   }
-  if (manifest.formatVersion !== PACKAGE_FORMAT_VERSION) {
+  if (manifest.formatVersion < MIN_READABLE_FORMAT_VERSION || manifest.formatVersion > PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported format version: ${manifest.formatVersion}`);
   }
 
@@ -110,6 +107,22 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
+  let bindings: AgentBindingDefinition[] | undefined;
+  try {
+    await access(path.join(resolvedRoot, 'config', 'bindings.json'));
+    bindings = await readJsonFile<AgentBindingDefinition[]>(
+      path.join(resolvedRoot, 'config', 'bindings.json'),
+    );
+  } catch {}
+
+  let cronJobs: CronJobDefinition[] | undefined;
+  try {
+    await access(path.join(resolvedRoot, 'config', 'cron.json'));
+    cronJobs = await readJsonFile<CronJobDefinition[]>(
+      path.join(resolvedRoot, 'config', 'cron.json'),
+    );
+  } catch {}
+
   return {
     packageRoot: resolvedRoot,
     manifest,
@@ -119,5 +132,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     checksums,
     exportReport,
     workspaceFiles,
+    bindings,
+    cronJobs,
   };
 }

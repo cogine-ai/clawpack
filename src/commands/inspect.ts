@@ -25,16 +25,18 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   });
 
   const warnings = [
-    'Channel bindings are not included in v1 packages.',
     'Skills are manifest-only and may require manual installation.',
   ];
+
+  const bootstrapFiles = scan.includedFiles
+    .filter((f) => f.isBootstrap)
+    .map((f) => f.relativePath);
 
   const report = {
     workspacePath,
     includedFiles: scan.includedFiles.map((file) => file.relativePath),
+    bootstrapFiles,
     excludedFiles: scan.excludedFiles,
-    ignoredFiles: scan.ignoredFiles,
-    missingOptionalFiles: scan.missingOptionalFiles,
     portableConfig: {
       found: !agentDefinition.notes.some((note) => note.includes('placeholder')),
       agent: agentDefinition.agent,
@@ -54,9 +56,8 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   const lines = [
     `Workspace: ${report.workspacePath}`,
     `Included files (${report.includedFiles.length}): ${report.includedFiles.join(', ') || 'none'}`,
+    `Bootstrap files (${report.bootstrapFiles.length}): ${report.bootstrapFiles.join(', ') || 'none'}`,
     `Excluded files (${report.excludedFiles.length}): ${report.excludedFiles.map((entry) => `${entry.relativePath} [${entry.reason}]`).join(', ') || 'none'}`,
-    `Ignored files (${report.ignoredFiles.length}): ${report.ignoredFiles.join(', ') || 'none'}`,
-    `Missing optional files (${report.missingOptionalFiles.length}): ${report.missingOptionalFiles.join(', ') || 'none'}`,
     'Portable agent definition:',
     `  found: ${report.portableConfig.found ? 'yes' : 'no'}`,
     `  suggested id: ${report.portableConfig.agent.suggestedId}`,
@@ -82,7 +83,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
 
 export function registerInspectCommand(command: Command): void {
   command
-    .description('Inspect a workspace and report what is portable in v1.')
+    .description('Inspect a workspace and report what is portable.')
     .requiredOption('--workspace <path>', 'Source workspace path')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
