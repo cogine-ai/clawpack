@@ -17,6 +17,7 @@ export async function writePackageArchive(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
+  openclawVersion?: string;
 }): Promise<ExportPackageResult> {
   const archivePath = deriveArchivePath(params.outputPath);
   const stagingDir = `${params.outputPath}.staging`;

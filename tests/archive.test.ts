@@ -1,16 +1,22 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { cleanupTempDir } from '../src/core/archive';
+import { extractAgentDefinition } from '../src/core/agent-extract';
 import { readPackage } from '../src/core/package-read';
+import { writePackageArchive } from '../src/core/package-write';
+import { detectSkills } from '../src/core/skills-detect';
+import { scanWorkspace } from '../src/core/workspace-scan';
 import { runCli } from './helpers/run-cli';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
 const dirOutput = path.resolve('tests/tmp/archive-test-dir.ocpkg');
 const archiveOutput = path.resolve('tests/tmp/archive-test-dir.ocpkg.tar.gz');
 const archiveImportTarget = path.resolve('tests/tmp/archive-import-target/workspace-archive');
+const archiveConfigRoot = path.resolve('tests/tmp/archive-config');
+const archiveConfigPath = path.join(archiveConfigRoot, 'openclaw-config.json');
 
 test('export --archive produces a .ocpkg.tar.gz file', async () => {
   await rm(dirOutput, { recursive: true, force: true });
@@ -65,6 +71,47 @@ test('readPackage detects and extracts .tar.gz archive', async () => {
   assert.ok(pkg.checksums['config/agent.json'].length === 64, 'checksum should be SHA-256');
 
   await cleanupTempDir(capturedTempDir);
+});
+
+test('writePackageArchive preserves openclawVersion metadata when provided', async () => {
+  await rm(archiveOutput, { force: true });
+  await rm(archiveConfigRoot, { recursive: true, force: true });
+  await mkdir(archiveConfigRoot, { recursive: true });
+
+  await writeFile(
+    archiveConfigPath,
+    `${JSON.stringify({ version: '9.8.7' }, null, 2)}\n`,
+    'utf8',
+  );
+
+  const scan = await scanWorkspace(fixture);
+  const skills = await detectSkills(scan);
+  const agentDefinition = await extractAgentDefinition(fixture, { configPath: archiveConfigPath });
+
+  await writePackageArchive({
+    outputPath: dirOutput,
+    packageName: 'archive-test-dir',
+    scan,
+    skills,
+    agentDefinition,
+    openclawVersion: '9.8.7',
+  });
+
+  let capturedTempDir: string | undefined;
+  const pkg = await readPackage(archiveOutput, {
+    onTempDir(dir) {
+      capturedTempDir = dir;
+    },
+  });
+
+  assert.equal(pkg.manifest.source.openclawVersion, '9.8.7');
+  if (capturedTempDir) {
+    const manifest = JSON.parse(
+      await readFile(path.join(pkg.packageRoot, 'manifest.json'), 'utf8'),
+    );
+    assert.equal(manifest.source.openclawVersion, '9.8.7');
+    await cleanupTempDir(capturedTempDir);
+  }
 });
 
 test('readPackage reads a directory without onTempDir callback', async () => {
