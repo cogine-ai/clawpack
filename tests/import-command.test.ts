@@ -17,6 +17,10 @@ async function runCli(args: string[]) {
     cwd: path.resolve('.'),
     timeout: 30_000,
     maxBuffer: 10 * 1024 * 1024,
+    env: {
+      ...process.env,
+      OPENCLAW_CONFIG_PATH: path.join(path.resolve('.'), 'tests', 'tmp', '.nonexistent-openclaw.json'),
+    },
   });
 }
 

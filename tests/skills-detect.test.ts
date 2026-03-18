@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { detectSkills } from '../src/core/skills-detect';
 import { scanWorkspace } from '../src/core/workspace-scan';
+import { createTempWorkspace, cleanupTempWorkspace } from './helpers/workspace-factory';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
 const tempWorkspace = path.resolve('tests/tmp/skills-workspace');
@@ -86,4 +87,75 @@ test('detectSkills notes workspace-local skills directory presence', async () =>
   const scan = await scanWorkspace(tempWorkspace);
   const result = await detectSkills(scan);
   assert.deepEqual(result.workspaceSkills, ['skills/']);
+});
+
+test('detectSkills returns empty referencedSkills when no .md files have skill references', async () => {
+  const basePath = path.resolve('tests/tmp/skills-no-refs');
+  await createTempWorkspace(basePath, {
+    files: {
+      'AGENTS.md': '# AGENTS\nGeneric content about agents.\n',
+      'SOUL.md': '# SOUL\nNo skill references here.\n',
+    },
+  });
+  try {
+    const scan = await scanWorkspace(basePath);
+    const result = await detectSkills(scan);
+    assert.deepEqual(result.referencedSkills, []);
+  } finally {
+    await cleanupTempWorkspace(basePath);
+  }
+});
+
+test('detectSkills handles empty .md files without false positives', async () => {
+  const basePath = path.resolve('tests/tmp/skills-empty-md');
+  const emptyFiles = {
+    'AGENTS.md': '',
+    'SOUL.md': '',
+    'IDENTITY.md': '',
+    'USER.md': '',
+    'TOOLS.md': '',
+    'MEMORY.md': '',
+  };
+  await createTempWorkspace(basePath, { files: emptyFiles });
+  try {
+    const scan = await scanWorkspace(basePath);
+    const result = await detectSkills(scan);
+    assert.deepEqual(result.referencedSkills, []);
+  } finally {
+    await cleanupTempWorkspace(basePath);
+  }
+});
+
+test('detectSkills deduplicates skills referenced in multiple files', async () => {
+  const basePath = path.resolve('tests/tmp/skills-dedup');
+  await createTempWorkspace(basePath, {
+    files: {
+      'AGENTS.md': 'Use the skill `brainstorming` before planning.\n',
+      'SOUL.md': 'Use the skill `brainstorming` for creativity.\n',
+    },
+  });
+  try {
+    const scan = await scanWorkspace(basePath);
+    const result = await detectSkills(scan);
+    assert.deepEqual(result.referencedSkills, ['brainstorming']);
+  } finally {
+    await cleanupTempWorkspace(basePath);
+  }
+});
+
+test('detectSkills extracts skills from path-style references', async () => {
+  const basePath = path.resolve('tests/tmp/skills-path-ref');
+  await createTempWorkspace(basePath, {
+    files: {
+      'AGENTS.md': 'See skills/my-tool/data-pipeline for pipeline config.\n',
+      'SOUL.md': '# SOUL\n',
+    },
+  });
+  try {
+    const scan = await scanWorkspace(basePath);
+    const result = await detectSkills(scan);
+    assert.deepEqual(result.referencedSkills, ['data-pipeline']);
+  } finally {
+    await cleanupTempWorkspace(basePath);
+  }
 });

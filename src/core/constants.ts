@@ -11,7 +11,7 @@ export const REQUIRED_WORKSPACE_FILES = [
   'MEMORY.md',
 ] as const;
 
-export const OPTIONAL_WORKSPACE_FILES = ['HEARTBEAT.md'] as const;
+export const OPTIONAL_WORKSPACE_FILES = ['BOOTSTRAP.md', 'HEARTBEAT.md'] as const;
 
 export const ALLOWED_WORKSPACE_FILES = [
   ...REQUIRED_WORKSPACE_FILES,

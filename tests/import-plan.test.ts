@@ -82,11 +82,13 @@ test('planImport preflights target config agent-id collisions and reports safer 
     JSON.stringify(
       {
         agents: {
-          'supercoder-copy': {
-            id: 'supercoder-copy',
-            name: 'Existing Agent',
-            workspace: '/tmp/existing-workspace',
-          },
+          list: [
+            {
+              id: 'supercoder-copy',
+              name: 'Existing Agent',
+              workspace: '/tmp/existing-workspace',
+            },
+          ],
         },
       },
       null,
@@ -126,4 +128,91 @@ test('planImport preflights target config agent-id collisions and reports safer 
   assert.deepEqual(forced.failed, []);
   assert.ok(forced.warnings.some((warning) => warning.includes('will be overwritten')));
   assert.equal(forced.writePlan.summary.configAgentCollision, true);
+});
+
+test('planImport reports both missing targetWorkspacePath and targetAgentId as requiredInputs', async () => {
+  const pkg = await buildFixturePackage();
+  const plan = await planImport({ pkg });
+
+  assert.equal(plan.canProceed, false);
+  const keys = plan.requiredInputs.map((item) => item.key).sort();
+  assert.deepEqual(keys, ['agentId', 'targetWorkspacePath']);
+});
+
+test('planImport allows fresh workspace + no config collision without force', async () => {
+  const pkg = await buildFixturePackage();
+  const freshTarget = path.resolve('tests/tmp/import-plan-fresh');
+  await rm(freshTarget, { recursive: true, force: true });
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: freshTarget,
+    targetAgentId: 'fresh-agent',
+  });
+
+  assert.equal(plan.canProceed, true);
+  assert.deepEqual(plan.requiredInputs, []);
+  assert.deepEqual(plan.failed, []);
+  assert.equal(plan.writePlan.summary.existingWorkspaceDetected, false);
+});
+
+test('planImport blocks on config collision alone when workspace does not exist', async () => {
+  const pkg = await buildFixturePackage();
+  const configRoot = path.resolve('tests/tmp/import-plan-config-only-collision');
+  const configPath = path.join(configRoot, 'openclaw-config.json');
+  const freshTarget = path.join(configRoot, 'workspace-new');
+
+  await rm(configRoot, { recursive: true, force: true });
+  await mkdir(configRoot, { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agents: { list: [{ id: 'blocker', name: 'Blocker', workspace: '/elsewhere' }] },
+    }),
+  );
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: freshTarget,
+    targetAgentId: 'blocker',
+    targetConfigPath: configPath,
+  });
+
+  assert.equal(plan.canProceed, false);
+  assert.ok(plan.failed.some((f) => f.includes('already exists in OpenClaw config')));
+  assert.equal(plan.writePlan.summary.existingWorkspaceDetected, false);
+  assert.equal(plan.writePlan.summary.configAgentCollision, true);
+});
+
+test('planImport force overrides both workspace and config collision simultaneously', async () => {
+  const pkg = await buildFixturePackage();
+  const configRoot = path.resolve('tests/tmp/import-plan-double-collision');
+  const configPath = path.join(configRoot, 'openclaw-config.json');
+  const existingTarget = path.join(configRoot, 'workspace-existing');
+
+  await rm(configRoot, { recursive: true, force: true });
+  await mkdir(existingTarget, { recursive: true });
+  await writeFile(path.join(existingTarget, 'AGENTS.md'), '# old\n');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agents: { list: [{ id: 'dual', name: 'Dual', workspace: '/old' }] },
+    }),
+  );
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: existingTarget,
+    targetAgentId: 'dual',
+    targetConfigPath: configPath,
+    force: true,
+  });
+
+  assert.equal(plan.canProceed, true);
+  assert.deepEqual(plan.failed, []);
+  assert.equal(plan.writePlan.overwriteExisting, true);
+  assert.equal(plan.writePlan.summary.existingWorkspaceDetected, true);
+  assert.equal(plan.writePlan.summary.configAgentCollision, true);
+  assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('--force')));
+  assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('config')));
 });

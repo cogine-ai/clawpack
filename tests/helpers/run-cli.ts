@@ -9,6 +9,10 @@ export const runCliExecOptions = {
   cwd: projectRoot,
   timeout: 30_000,
   maxBuffer: 10 * 1024 * 1024,
+  env: {
+    ...process.env,
+    OPENCLAW_CONFIG_PATH: path.join(projectRoot, 'tests', 'tmp', '.nonexistent-openclaw.json'),
+  },
 };
 
 export async function runCli(args: string[]) {

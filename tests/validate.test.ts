@@ -103,11 +103,13 @@ test('validate reports target config consistency when config path is provided', 
     JSON.stringify(
       {
         agents: {
-          'supercoder-copy': {
-            id: 'supercoder-copy',
-            name: 'Supercoder',
-            workspace: targetRoot,
-          },
+          list: [
+            {
+              id: 'supercoder-copy',
+              name: 'Supercoder',
+              workspace: targetRoot,
+            },
+          ],
         },
       },
       null,
@@ -136,11 +138,13 @@ test('validate reports target config consistency when config path is provided', 
     JSON.stringify(
       {
         agents: {
-          'supercoder-copy': {
-            id: 'supercoder-copy',
-            name: 'Supercoder',
-            workspace: '/tmp/wrong-workspace',
-          },
+          list: [
+            {
+              id: 'supercoder-copy',
+              name: 'Supercoder',
+              workspace: '/tmp/wrong-workspace',
+            },
+          ],
         },
       },
       null,
