@@ -1,7 +1,8 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { writePackageArchive, writePackageDirectory } from '../core/package-write';
+import { detectOpenClawVersion } from '../core/openclaw-config';
+import { writePackageDirectory } from '../core/package-write';
 import { detectSkills } from '../core/skills-detect';
 import { scanWorkspace } from '../core/workspace-scan';
 
@@ -11,8 +12,6 @@ interface ExportOptions {
   name?: string;
   config?: string;
   agentId?: string;
-  archive?: boolean;
-  json?: boolean;
 }
 
 export async function runExport(options: ExportOptions): Promise<void> {
@@ -26,52 +25,42 @@ export async function runExport(options: ExportOptions): Promise<void> {
     configPath: options.config,
     agentId: options.agentId,
   });
-  const packageName =
-    options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
+  const openclawVersion = await detectOpenClawVersion({
+    configPath: options.config,
+    cwd: scan.workspacePath,
+  });
+  const packageName = options.name ?? path.basename(options.out).replace(/\.ocpkg$/, '');
 
-  const writeParams = {
+  const result = await writePackageDirectory({
     outputPath: path.resolve(options.out),
     packageName,
     scan,
     skills,
     agentDefinition,
-  };
-
-  const result = options.archive
-    ? await writePackageArchive(writeParams)
-    : await writePackageDirectory(writeParams);
-
-  const report = {
-    status: 'ok' as const,
-    packageRoot: result.packageRoot,
-    manifestPath: result.manifestPath,
-    fileCount: result.fileCount,
-  };
-
-  if (options.json) {
-    console.log(JSON.stringify(report, null, 2));
-    return;
-  }
+    openclawVersion,
+  });
 
   console.log(
-    [
-      'Export complete',
-      `  Package: ${report.packageRoot}`,
-      `  Manifest: ${report.manifestPath}`,
-      `  Files: ${report.fileCount}`,
-    ].join('\n'),
+    JSON.stringify(
+      {
+        status: 'ok',
+        packageRoot: result.packageRoot,
+        manifestPath: result.manifestPath,
+        fileCount: result.fileCount,
+      },
+      null,
+      2,
+    ),
   );
 }
 
 export function registerExportCommand(command: Command): void {
   command
-    .description('Export a portable .ocpkg directory or .ocpkg.tar.gz archive from a workspace.')
+    .description('Export a portable .ocpkg directory from a workspace.')
     .requiredOption('--workspace <path>', 'Source workspace path')
-    .requiredOption('--out <path>', 'Output package path')
+    .requiredOption('--out <path>', 'Output package directory path')
     .option('--name <package-name>', 'Package name override')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
-    .option('--archive', 'Produce a .ocpkg.tar.gz single-file archive')
-    .option('--json', 'Emit the full machine-readable JSON report')
     .action(runExport);
 }

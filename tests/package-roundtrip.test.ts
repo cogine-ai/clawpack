@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { readPackageDirectory } from '../src/core/package-read';
@@ -23,17 +23,20 @@ test('export command writes package directory structure and excludes daily memor
     'workspace/AGENTS.md',
     'workspace/MEMORY.md',
   ]) {
-    assert.equal(
-      existsSync(path.join(outputRoot, requiredPath)),
-      true,
-      `${requiredPath} should exist`,
-    );
+    assert.equal(existsSync(path.join(outputRoot, requiredPath)), true, `${requiredPath} should exist`);
   }
 
   assert.equal(existsSync(path.join(outputRoot, 'workspace', 'memory', '2026-03-16.md')), false);
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
   assert.equal(manifest.includes.skills, 'manifest-only');
+  assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
+  assert.equal(typeof manifest.metadata.createdBy.version, 'string');
+  assert.equal(manifest.metadata.platform.os, process.platform);
+  assert.equal(manifest.metadata.platform.arch, process.arch);
+  assert.equal(manifest.metadata.platform.node, process.version);
+  assert.match(manifest.metadata.contentHash, /^[a-f0-9]{64}$/);
 });
 
 test('package reader opens a valid exported package and verifies checksums', async () => {
@@ -46,61 +49,20 @@ test('package reader opens a valid exported package and verifies checksums', asy
   assert.equal(pkg.checksums['config/agent.json'].length, 64);
 });
 
-test('export command defaults to human-readable output and supports --json', async () => {
+test('package reader tolerates manifests from older packages with missing additive metadata', async () => {
   await rm(outputRoot, { recursive: true, force: true });
-
-  const human = await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
-  assert.match(human.stdout, /Export complete/);
-  assert.match(human.stdout, /Package:/);
-  assert.match(human.stdout, /Manifest:/);
-  assert.match(human.stdout, /Files:/);
-  assert.equal(human.stdout.includes('"status"'), false);
-
-  await rm(outputRoot, { recursive: true, force: true });
-
-  const json = await runCli(['export', '--workspace', fixture, '--out', outputRoot, '--json']);
-  const report = JSON.parse(json.stdout);
-  assert.equal(report.status, 'ok');
-  assert.ok(report.packageRoot);
-  assert.ok(report.manifestPath);
-  assert.equal(typeof report.fileCount, 'number');
-});
-
-test('import success defaults to human-readable output and supports --json', async () => {
-  await rm(outputRoot, { recursive: true, force: true });
-  await rm(path.dirname(targetRoot), { recursive: true, force: true });
   await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
 
-  const human = await runCli([
-    'import',
-    outputRoot,
-    '--target-workspace',
-    targetRoot,
-    '--agent-id',
-    'supercoder-copy',
-  ]);
-  assert.match(human.stdout, /Import complete/);
-  assert.match(human.stdout, /Workspace:/);
-  assert.match(human.stdout, /Agent id: supercoder-copy/);
-  assert.match(human.stdout, /Imported files:/);
-  assert.equal(human.stdout.includes('"status"'), false);
+  const manifestPath = path.join(outputRoot, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  delete manifest.metadata;
+  delete manifest.source.openclawVersion;
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-  await rm(path.dirname(targetRoot), { recursive: true, force: true });
-
-  const json = await runCli([
-    'import',
-    outputRoot,
-    '--target-workspace',
-    targetRoot,
-    '--agent-id',
-    'supercoder-copy',
-    '--json',
-  ]);
-  const report = JSON.parse(json.stdout);
-  assert.equal(report.status, 'ok');
-  assert.equal(report.agentId, 'supercoder-copy');
-  assert.ok(Array.isArray(report.importedFiles));
-  assert.ok(Array.isArray(report.nextSteps));
+  const pkg = await readPackageDirectory(outputRoot);
+  assert.equal(pkg.manifest.metadata, undefined);
+  assert.equal(pkg.manifest.source.openclawVersion, undefined);
+  assert.equal(pkg.workspaceFiles.length >= 6, true);
 });
 
 test('roundtrip export -> import -> validate succeeds with expected warnings', async () => {
@@ -108,31 +70,12 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
 
   await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
-  await runCli([
-    'import',
-    outputRoot,
-    '--target-workspace',
-    targetRoot,
-    '--agent-id',
-    'supercoder-copy',
-  ]);
-  const { stdout } = await runCli([
-    'validate',
-    '--target-workspace',
-    targetRoot,
-    '--agent-id',
-    'supercoder-copy',
-    '--json',
-  ]);
+  await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
 
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
-  assert.ok(
-    report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
-  );
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
-  assert.equal(
-    existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
-    true,
-  );
+  assert.equal(existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')), true);
 });
