@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-19
+
+### Added
+
+- `import --dry-run` mode to preview the import plan without writing files (#10)
+- Package manifest metadata: `createdAt`, `createdBy`, `platform`, `contentHash` (#12)
+- Discriminated import plan types: `BlockedImportPlan` / `ExecutableImportPlan` for safer plan handling (#15)
+- GitHub Actions CI workflow for master and develop branches (#6)
+- Biome as unified linter/formatter toolchain (#8)
+
+### Changed
+
+- Package format upgraded to v2; older v1 packages remain readable (`MIN_READABLE_FORMAT_VERSION = 1`) (#33)
+- Workspace scanning switched from allowlist to blacklist model — all files are included except excluded directories (`.git`, `.openclaw`, `node_modules`) and patterns (`memory/*.md`), including files in subdirectories (#33)
+- Agent config extraction expanded to full portable slice including tools, skills, heartbeat, sandbox, runtime, params, and subagents (#33)
+- OpenClaw config aligned with actual spec: supports `agent` (single) and `agents.list` (multi-agent) formats, `OPENCLAW_CONFIG_PATH` env var, default path changed to `~/.openclaw/openclaw.json` (#32)
+
+### Fixed
+
+- Enforce manifest-declared file reads and add `formatVersion` type validation (#33)
+- OpenClaw config parsing aligned with actual OpenClaw spec (#32)
+
 ## [0.1.0] - 2026-03-17
 
 Initial alpha release of clawpacker — a portability CLI for OpenClaw agents and workspaces.
@@ -36,5 +58,6 @@ Initial alpha release of clawpacker — a portability CLI for OpenClaw agents an
 - Unified CLI output format across export/import/validate commands (#13)
 - Cleaned up blocked-import failure output for operator readability (#3)
 
-[Unreleased]: https://github.com/cogine-ai/clawpack/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cogine-ai/clawpack/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cogine-ai/clawpack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cogine-ai/clawpack/releases/tag/v0.1.0

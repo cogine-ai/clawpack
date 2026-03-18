@@ -19,7 +19,7 @@ This is **template portability**, not full-instance backup.
 
 ## Status
 
-**Internal alpha.** The current CLI is usable for v1-style experiments, but the package format and UX should still be treated as early-stage.
+**Internal alpha.** The current CLI is usable for early experiments (package format v2), but the format and UX should still be treated as early-stage.
 
 Use it when you want to:
 
@@ -29,21 +29,19 @@ Use it when you want to:
 
 Do **not** treat it as a production-grade backup, archival, or disaster-recovery tool yet.
 
-## What Clawpacker does in v1
+## What Clawpacker does
 
 ### Included
 
-By default, Clawpacker exports the portable workspace files:
+Clawpacker uses a **blacklist model** — it includes all files in the workspace (including subdirectories) except those matching explicit exclusion rules.
 
-- `AGENTS.md`
-- `SOUL.md`
-- `IDENTITY.md`
-- `USER.md`
-- `TOOLS.md`
-- `MEMORY.md`
-- `HEARTBEAT.md` if present
+The following files are recognized as **bootstrap files** and flagged in the manifest:
 
-It also writes package metadata:
+`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
+
+All other workspace files are included as well, preserving directory structure.
+
+The package also contains metadata:
 
 - `manifest.json`
 - `config/agent.json`
@@ -54,27 +52,38 @@ It also writes package metadata:
 
 ### Excluded
 
-Clawpacker intentionally excludes or avoids restoring:
+Clawpacker excludes the following subdirectories if they appear inside the workspace:
+
+- `.git`
+- `.openclaw`
+- `node_modules`
+
+And these file patterns:
 
 - `memory/*.md` daily logs
+
+These rules only apply to contents **within** the scanned workspace directory. The parent `~/.openclaw/` installation and its config files are not part of the workspace scan — OpenClaw config is read separately via `--config` or config discovery.
+
+Beyond file-level exclusions, Clawpacker never exports or restores:
+
 - secrets, auth state, cookies, API keys, credentials
 - session/runtime state
 - channel bindings / routing state
 - globally installed skills or extensions
 - machine-specific absolute-path behavior that is not portable
 
-### Skills model in v1
+### Skills model
 
 Skills are **manifest-only** right now.
 
-That means Clawpacker records detected skill references, but it does not bundle or install skill implementations for you.
+That means Clawpacker records detected skill references (using backtick-quoted references like `` `skill-name` ``), but it does not bundle or install skill implementations for you.
 
 ## Install
 
 ### Published package
 
 ```bash
-npm install -g clawpacker
+npm install -g @cogineai/clawpacker
 clawpacker --help
 ```
 
@@ -100,7 +109,7 @@ node dist/cli.js --help
 After building, the CLI exposes four commands:
 
 - `inspect` — analyze a workspace before packaging
-- `export` — write a `.ocpkg/` directory package
+- `export` — write a `.ocpkg/` directory or `.ocpkg.tar.gz` archive
 - `import` — restore a package into a target workspace
 - `validate` — verify an imported workspace target
 
@@ -143,9 +152,11 @@ What `inspect` tells you:
 - whether a portable agent definition could be derived
 - which fields are portable vs import-time inputs
 - which skills were detected
-- v1 warnings you should expect on export/import
+- warnings you should expect on export/import
 
 ### 2) Export a package
+
+Directory package:
 
 ```bash
 node dist/cli.js export \
@@ -155,7 +166,20 @@ node dist/cli.js export \
   --name supercoder-template
 ```
 
-Current output is JSON, for example:
+Single-file archive:
+
+```bash
+node dist/cli.js export \
+  --workspace ./tests/fixtures/source-workspace \
+  --config ./tests/fixtures/openclaw-config/source-config.jsonc \
+  --out ./tests/tmp/example-supercoder.ocpkg \
+  --name supercoder-template \
+  --archive
+```
+
+The `--archive` flag produces a `.ocpkg.tar.gz` file for easier transport.
+
+Output defaults to human-readable text. Add `--json` for machine-readable output:
 
 ```json
 {
@@ -168,6 +192,8 @@ Current output is JSON, for example:
 
 ### 3) Import a package
 
+Accepts both `.ocpkg/` directories and `.ocpkg.tar.gz` archives:
+
 ```bash
 node dist/cli.js import \
   ./tests/tmp/example-supercoder.ocpkg \
@@ -176,10 +202,21 @@ node dist/cli.js import \
   --config ./tests/tmp/target-openclaw-config.json
 ```
 
+Preview the import plan without writing anything:
+
+```bash
+node dist/cli.js import \
+  ./tests/tmp/example-supercoder.ocpkg \
+  --target-workspace ./tests/tmp/workspace-supercoder-imported \
+  --agent-id supercoder-imported \
+  --dry-run
+```
+
 Notes:
 
 - `--target-workspace` is required
 - `--agent-id` is strongly recommended and becomes required in practice for collision-safe import planning
+- `--dry-run` prints the import plan and exits without writing files
 - if the target workspace or target agent already exists, import blocks unless you pass `--force`
 - if no config is found, import can still restore workspace files, but config registration becomes limited
 
@@ -192,7 +229,7 @@ node dist/cli.js validate \
   --config ./tests/tmp/target-openclaw-config.json
 ```
 
-Current output is a JSON validation report with:
+Output defaults to human-readable text. Add `--json` for a structured report with:
 
 - `passed`
 - `warnings`
@@ -212,24 +249,23 @@ When you provide `--config`, or when import can discover a nearby OpenClaw confi
 
 ### Config discovery behavior
 
-If you do not pass `--config`, Clawpacker looks for a config in these places:
+Config is resolved in this order:
 
-- `./openclaw-config.json`
-- `./openclaw-config.jsonc`
-- `~/.openclaw/config.json`
-- `~/.openclaw/config.jsonc`
+1. explicit `--config` flag
+2. `OPENCLAW_CONFIG_PATH` environment variable
+3. `~/.openclaw/openclaw.json` (default)
 
 ### Portable config philosophy
 
 Clawpacker does **not** export raw OpenClaw config wholesale.
 
-Instead, it extracts a minimal, portable slice, such as:
+Instead, it extracts a portable slice of agent config, including:
 
-- suggested agent id
-- suggested display name
+- agent id and display name
 - workspace basename suggestion
 - identity name
 - default model, when present
+- tools, skills, heartbeat, sandbox, and runtime settings
 
 And it explicitly excludes things like:
 
@@ -243,8 +279,8 @@ Clawpacker is designed to be conservative.
 
 ### Export safety
 
-- only known portable workspace files are copied
-- daily memory logs are excluded by default
+- all workspace files are included except explicitly excluded directories and patterns
+- daily memory logs (`memory/*.md`) are excluded by default
 - package contents are declared in a manifest instead of hidden in opaque state
 - checksums are generated for integrity verification
 
@@ -267,7 +303,7 @@ Even after a successful import, you should still:
 
 ## Package structure
 
-A typical v1 package looks like this:
+A typical package looks like this:
 
 ```text
 supercoder-template.ocpkg/
@@ -280,6 +316,9 @@ supercoder-template.ocpkg/
     TOOLS.md
     MEMORY.md
     HEARTBEAT.md
+    custom-prompts/
+      review.md
+    ...                     # any other workspace files
   config/
     agent.json
     import-hints.json
@@ -289,34 +328,33 @@ supercoder-template.ocpkg/
     export-report.json
 ```
 
-## What is intentionally out of scope in v1
+The `workspace/` directory mirrors the source workspace structure. All non-excluded files are included, so the contents vary depending on what lives in the source workspace.
+
+Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
+
+## What is intentionally out of scope
 
 - full OpenClaw instance backup
 - secret migration
 - auth/session migration
 - channel binding export/import
 - packaging globally installed skill implementations
-- archive transport formats beyond the current directory package flow
 - zero-touch import across mismatched environments
 
 ## Roadmap / known limitations
 
 Near-term likely improvements:
 
-- publishable npm package + stable binary release
-- friendlier non-JSON output for `export`, `import`, and `validate`
-- optional archive packaging for transport
 - richer import guidance when models or skills are missing
 - optional packaging for workspace-local skill folders
 - better package compatibility/version negotiation
 
 Current limitations to be aware of:
 
-- package format should still be treated as alpha
+- package format should still be treated as early-stage (currently v2)
 - skills are detected, but not bundled
 - import assumes conservative file-level replacement semantics via `--force`
 - OpenClaw config support is minimal by design
-- examples currently assume local source usage, not a published global install
 
 ## Development
 
@@ -359,7 +397,7 @@ npm test
 
 ## Naming
 
-The npm package name is **`clawpacker`** while the GitHub repository remains **`cogine-ai/clawpack`**.
+The npm package name is **`@cogineai/clawpacker`** while the GitHub repository remains **`cogine-ai/clawpack`**.
 
 Why this naming split:
 
