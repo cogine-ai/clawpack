@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
+import { REQUIRED_WORKSPACE_FILES } from '../src/core/constants';
 import { readPackageDirectory } from '../src/core/package-read';
 import { runCli } from './helpers/run-cli';
 
@@ -154,4 +155,30 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
     existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
     true,
   );
+});
+
+test('export -> import roundtrip preserves workspace file contents byte-for-byte', async () => {
+  const bytesOutputRoot = path.resolve('tests/tmp/bytes-roundtrip.ocpkg');
+  const bytesTargetRoot = path.resolve('tests/tmp/bytes-roundtrip-target/workspace-bytes');
+
+  await rm(bytesOutputRoot, { recursive: true, force: true });
+  await rm(path.dirname(bytesTargetRoot), { recursive: true, force: true });
+
+  await runCli(['export', '--workspace', fixture, '--out', bytesOutputRoot]);
+  await runCli([
+    'import',
+    bytesOutputRoot,
+    '--target-workspace',
+    bytesTargetRoot,
+    '--agent-id',
+    'bytes-test',
+  ]);
+
+  const sourceEntries = await readdir(fixture);
+  for (const file of REQUIRED_WORKSPACE_FILES) {
+    if (!sourceEntries.includes(file)) continue;
+    const original = await readFile(path.join(fixture, file));
+    const imported = await readFile(path.join(bytesTargetRoot, file));
+    assert.deepEqual(imported, original, `${file} content should be byte-for-byte identical`);
+  }
 });

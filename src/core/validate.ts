@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readJsonFile } from '../utils/json';
 import { pathExists } from '../utils/fs';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
-import { loadOpenClawConfig } from './openclaw-config';
+import { loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
 
 // TODO: In a future PR, update workspace-scan.ts to replace its inline access() checks with pathExists.
@@ -58,16 +58,16 @@ export async function validateImportedWorkspace(params: {
         `OpenClaw config consistency check skipped for ${configPath} because --agent-id was not provided.`,
       );
     } else {
-      const configAgent = config.agents?.[params.agentId];
-      if (!configAgent) {
+      const resolved = resolveAgentFromConfig(config, params.agentId);
+      if (!resolved) {
         report.failed.push(`OpenClaw config agent missing: ${params.agentId} (${configPath})`);
         report.nextSteps.push(
           'Re-run import with --config or add the target agent entry manually to the OpenClaw config.',
         );
       } else {
         report.passed.push(`OpenClaw config agent present: ${params.agentId} (${configPath})`);
-        const resolvedConfigWorkspace = configAgent.workspace
-          ? path.resolve(configAgent.workspace)
+        const resolvedConfigWorkspace = resolved.agent.workspace
+          ? path.resolve(resolved.agent.workspace)
           : undefined;
         if (!resolvedConfigWorkspace) {
           report.failed.push(

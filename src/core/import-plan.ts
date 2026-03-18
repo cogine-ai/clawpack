@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { pathExists } from '../utils/fs';
-import { loadOpenClawConfig } from './openclaw-config';
+import { hasAgentInConfig, loadOpenClawConfig } from './openclaw-config';
 import type { ImportHints, ImportPlan, ReadPackageResult } from './types';
 
 export async function planImport(params: {
@@ -55,7 +55,7 @@ export async function planImport(params: {
     );
   } else if (await pathExists(params.targetConfigPath)) {
     const { config } = await loadOpenClawConfig({ configPath: params.targetConfigPath });
-    if (config.agents?.[targetAgentId]) {
+    if (hasAgentInConfig(config, targetAgentId)) {
       configAgentCollision = true;
       if (!params.force) {
         failed.push(`Target agent already exists in OpenClaw config: ${targetAgentId}`);

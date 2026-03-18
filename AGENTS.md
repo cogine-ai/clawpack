@@ -10,22 +10,24 @@ Keep it short. Keep it operational. Do not turn this into a second README.
 - **npm package:** `@cogineai/clawpacker`
 - **CLI command:** `clawpacker`
 
-clawpack is a **portability CLI for OpenClaw agents and workspaces**.
+clawpack is a **portability CLI for OpenClaw agents**.
+
+The core entity is the **agent**. A workspace is a property of an agent (its working directory), not an independent concept. When clawpack exports, imports, or validates, it operates on agents — the workspace files travel as part of the agent package.
 
 Its job is to help users:
-- inspect portability
-- export reusable packages
-- import them into another OpenClaw setup
-- validate the restored result
+- inspect an agent's portability
+- export an agent as a reusable package
+- import an agent into another OpenClaw setup
+- validate the restored agent
 
 ## Scope
 
 Build and refine:
-- workspace/package inspection
-- package export/import
-- validation
-- conservative OpenClaw config awareness
-- safe packaging and migration workflows
+- agent portability inspection
+- agent package export/import
+- post-import validation
+- conservative OpenClaw config awareness (agent definitions, workspace paths)
+- safe agent migration workflows
 
 Do **not** casually expand this project into:
 - full-instance backup/restore
@@ -48,8 +50,10 @@ That means:
 - do not write more OpenClaw config than necessary
 
 When integrating with OpenClaw config:
-- extract a **portable slice**, not the whole world
-- write back only the minimum scoped agent definition needed
+- the config file is `~/.openclaw/openclaw.json` by default, overridable via `OPENCLAW_CONFIG_PATH`
+- support both single-agent (`agent`) and multi-agent (`agents.list`) config formats
+- extract a **portable slice** of the agent definition, not the whole world
+- write back only the minimum scoped agent entry needed
 - degrade gracefully when config is missing or ambiguous
 
 ## CLI UX Principles
