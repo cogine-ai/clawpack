@@ -65,17 +65,93 @@ test('package reader tolerates manifests from older packages with missing additi
   assert.equal(pkg.workspaceFiles.length >= 6, true);
 });
 
+test('export command defaults to human-readable output and supports --json', async () => {
+  await rm(outputRoot, { recursive: true, force: true });
+
+  const human = await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
+  assert.match(human.stdout, /Export complete/);
+  assert.match(human.stdout, /Package:/);
+  assert.match(human.stdout, /Manifest:/);
+  assert.match(human.stdout, /Files:/);
+  assert.equal(human.stdout.includes('"status"'), false);
+
+  await rm(outputRoot, { recursive: true, force: true });
+
+  const json = await runCli(['export', '--workspace', fixture, '--out', outputRoot, '--json']);
+  const report = JSON.parse(json.stdout);
+  assert.equal(report.status, 'ok');
+  assert.ok(report.packageRoot);
+  assert.ok(report.manifestPath);
+  assert.equal(typeof report.fileCount, 'number');
+});
+
+test('import success defaults to human-readable output and supports --json', async () => {
+  await rm(outputRoot, { recursive: true, force: true });
+  await rm(path.dirname(targetRoot), { recursive: true, force: true });
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
+
+  const human = await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+  ]);
+  assert.match(human.stdout, /Import complete/);
+  assert.match(human.stdout, /Workspace:/);
+  assert.match(human.stdout, /Agent id: supercoder-copy/);
+  assert.match(human.stdout, /Imported files:/);
+  assert.equal(human.stdout.includes('"status"'), false);
+
+  await rm(path.dirname(targetRoot), { recursive: true, force: true });
+
+  const json = await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+    '--json',
+  ]);
+  const report = JSON.parse(json.stdout);
+  assert.equal(report.status, 'ok');
+  assert.equal(report.agentId, 'supercoder-copy');
+  assert.ok(Array.isArray(report.importedFiles));
+  assert.ok(Array.isArray(report.nextSteps));
+});
+
 test('roundtrip export -> import -> validate succeeds with expected warnings', async () => {
   await rm(outputRoot, { recursive: true, force: true });
   await rm(path.dirname(targetRoot), { recursive: true, force: true });
 
   await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
-  await runCli(['import', outputRoot, '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
-  const { stdout } = await runCli(['validate', '--target-workspace', targetRoot, '--agent-id', 'supercoder-copy']);
+  await runCli([
+    'import',
+    outputRoot,
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+  ]);
+  const { stdout } = await runCli([
+    'validate',
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+    '--json',
+  ]);
 
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
+  assert.ok(
+    report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
+  );
   assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
-  assert.equal(existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')), true);
+  assert.equal(
+    existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
+    true,
+  );
 });
