@@ -71,6 +71,25 @@ export async function detectOpenClawVersion(params: { configPath?: string; cwd?:
   }
 }
 
+export async function resolveAgentDir(params: {
+  configPath?: string;
+  cwd?: string;
+  agentId?: string;
+}): Promise<string | undefined> {
+  try {
+    const { config, configPath } = await loadOpenClawConfig(params);
+    const resolved = resolveAgentFromConfig(config, params.agentId);
+    if (!resolved?.agent.agentDir) return undefined;
+
+    const agentDir = resolved.agent.agentDir;
+    return path.isAbsolute(agentDir)
+      ? agentDir
+      : path.resolve(path.dirname(configPath), agentDir);
+  } catch {
+    return undefined;
+  }
+}
+
 export function resolveAgentFromConfig(
   config: MinimalOpenClawConfig,
   agentId?: string,
