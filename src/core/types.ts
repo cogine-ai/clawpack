@@ -239,3 +239,51 @@ export interface ValidationReport {
   failed: string[];
   nextSteps: string[];
 }
+
+export type RuntimeMode = 'none' | 'default' | 'full';
+
+export interface RuntimeScanResult {
+  mode: RuntimeMode;
+  agentDir: string;
+  includedFiles: Array<{ relativePath: string; absolutePath: string }>;
+  excludedFiles: ExcludedWorkspaceFile[];
+  warnings: string[];
+  sanitizedModels: Record<string, unknown> | undefined;
+  settingsAnalysis: SettingsAnalysis | undefined;
+}
+
+export interface RuntimeManifest {
+  mode: RuntimeMode;
+  agentDir: string;
+  includedFiles: string[];
+  excludedFiles: ExcludedWorkspaceFile[];
+  warnings: string[];
+  modelsSanitized: boolean;
+  modelsSkipped: boolean;
+  settingsAnalysisIncluded: boolean;
+}
+
+export type SettingsPathClassification =
+  | 'package-internal-workspace'
+  | 'package-internal-agentDir'
+  | 'relative'
+  | 'external-absolute'
+  | 'host-bound';
+
+export interface SettingsPathRef {
+  key: string;
+  value: string;
+  classification: SettingsPathClassification;
+}
+
+export interface SettingsAnalysis {
+  pathRefs: SettingsPathRef[];
+  summary: {
+    total: number;
+    packageInternalWorkspace: number;
+    packageInternalAgentDir: number;
+    relative: number;
+    externalAbsolute: number;
+    hostBound: number;
+  };
+}
