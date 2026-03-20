@@ -126,6 +126,8 @@ export interface PackageManifest {
     agentDefinition: boolean;
     bindings?: boolean;
     cronJobs?: boolean;
+    runtimeMode?: RuntimeMode;
+    runtimeFiles?: string[];
   };
   excludes: {
     secrets: boolean;
@@ -148,6 +150,7 @@ export interface ExportReport {
   excludedFiles: ExcludedWorkspaceFile[];
   warnings: string[];
   skills: SkillsManifest;
+  runtime?: RuntimeManifest;
 }
 
 export interface ExportArtifacts {
@@ -182,6 +185,7 @@ export interface ReadPackageResult {
   }>;
   bindings?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
+  runtimeManifest?: RuntimeManifest;
 }
 
 export interface ImportWritePlan {

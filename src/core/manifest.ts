@@ -7,6 +7,8 @@ import type {
   ExportArtifacts,
   ExportReport,
   PackageManifest,
+  RuntimeManifest,
+  RuntimeScanResult,
   SkillsManifest,
   WorkspaceScanResult,
 } from './types';
@@ -22,6 +24,7 @@ export function buildManifest(params: {
   checksums?: Record<string, string>;
   hasBindings?: boolean;
   hasCronJobs?: boolean;
+  runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
   return {
@@ -45,6 +48,8 @@ export function buildManifest(params: {
       agentDefinition: true,
       bindings: params.hasBindings ?? false,
       cronJobs: params.hasCronJobs ?? false,
+      runtimeMode: params.runtimeScan?.mode,
+      runtimeFiles: params.runtimeScan?.includedFiles.map(f => f.relativePath),
     },
     excludes: {
       secrets: true,
@@ -64,6 +69,7 @@ export function buildExportReport(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   warnings?: string[];
+  runtimeManifest?: RuntimeManifest;
 }): ExportReport {
   return {
     packageName: params.packageName,
@@ -75,6 +81,7 @@ export function buildExportReport(params: {
     excludedFiles: params.scan.excludedFiles,
     warnings: params.warnings ?? [],
     skills: params.skills,
+    runtime: params.runtimeManifest,
   };
 }
 
@@ -89,6 +96,8 @@ export function buildExportArtifacts(params: {
   warnings?: string[];
   hasBindings?: boolean;
   hasCronJobs?: boolean;
+  runtimeScan?: RuntimeScanResult;
+  runtimeManifest?: RuntimeManifest;
 }): ExportArtifacts {
   return {
     manifest: buildManifest(params),

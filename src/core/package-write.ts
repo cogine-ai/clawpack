@@ -9,6 +9,8 @@ import type {
   CronJobDefinition,
   ExportPackageResult,
   ImportHints,
+  RuntimeManifest,
+  RuntimeScanResult,
   SkillsManifest,
   WorkspaceScanResult,
 } from './types';
@@ -22,6 +24,7 @@ export async function writePackageArchive(params: {
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
+  runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   const archivePath = deriveArchivePath(params.outputPath);
   const stagingDir = `${params.outputPath}.staging`;
@@ -53,6 +56,7 @@ export async function writePackageDirectory(params: {
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
+  runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   await rm(params.outputPath, { recursive: true, force: true });
   await mkdir(path.join(params.outputPath, 'workspace'), { recursive: true });
@@ -113,6 +117,62 @@ export async function writePackageDirectory(params: {
     checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
   }
 
+  let runtimeManifestData: RuntimeManifest | undefined;
+
+  if (params.runtimeScan && params.runtimeScan.mode !== 'none' && params.runtimeScan.includedFiles.length > 0) {
+    const runtimeDir = path.join(params.outputPath, 'runtime');
+    const runtimeFilesDir = path.join(runtimeDir, 'files');
+    await mkdir(runtimeFilesDir, { recursive: true });
+
+    const runtimeChecksums: Record<string, string> = {};
+
+    for (const file of params.runtimeScan.includedFiles) {
+      const targetPath = path.join(runtimeFilesDir, file.relativePath);
+      await mkdir(path.dirname(targetPath), { recursive: true });
+
+      if (file.relativePath === 'models.json' && params.runtimeScan.sanitizedModels) {
+        const sanitizedJson = JSON.stringify(params.runtimeScan.sanitizedModels, null, 2);
+        await writeFile(targetPath, `${sanitizedJson}\n`, 'utf8');
+        runtimeChecksums[path.posix.join('runtime/files', file.relativePath)] = checksumText(`${sanitizedJson}\n`);
+      } else {
+        await cp(file.absolutePath, targetPath);
+        runtimeChecksums[path.posix.join('runtime/files', file.relativePath)] = await checksumFile(targetPath);
+      }
+    }
+
+    runtimeManifestData = {
+      mode: params.runtimeScan.mode,
+      agentDir: params.runtimeScan.agentDir,
+      includedFiles: params.runtimeScan.includedFiles.map(f => f.relativePath),
+      excludedFiles: params.runtimeScan.excludedFiles,
+      warnings: params.runtimeScan.warnings,
+      modelsSanitized: params.runtimeScan.sanitizedModels !== undefined,
+      modelsSkipped: params.runtimeScan.sanitizedModels === undefined &&
+        !params.runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
+        params.runtimeScan.warnings.some(w => w.includes('models.json')),
+      settingsAnalysisIncluded: params.runtimeScan.settingsAnalysis !== undefined,
+    };
+
+    const runtimeManifestJson = JSON.stringify(runtimeManifestData, null, 2);
+    await writeFile(path.join(runtimeDir, 'manifest.json'), `${runtimeManifestJson}\n`, 'utf8');
+
+    const runtimeChecksumsJson = JSON.stringify(runtimeChecksums, null, 2);
+    await writeFile(path.join(runtimeDir, 'checksums.json'), `${runtimeChecksumsJson}\n`, 'utf8');
+
+    const pathRewrites = JSON.stringify({}, null, 2);
+    await writeFile(path.join(runtimeDir, 'path-rewrites.json'), `${pathRewrites}\n`, 'utf8');
+
+    if (params.runtimeScan.settingsAnalysis) {
+      const analysisJson = JSON.stringify(params.runtimeScan.settingsAnalysis, null, 2);
+      await writeFile(path.join(runtimeDir, 'settings-analysis.json'), `${analysisJson}\n`, 'utf8');
+    }
+
+    checksums['runtime/manifest.json'] = checksumText(`${runtimeManifestJson}\n`);
+    checksums['runtime/checksums.json'] = checksumText(`${runtimeChecksumsJson}\n`);
+    checksums['runtime/path-rewrites.json'] = checksumText(`${pathRewrites}\n`);
+    Object.assign(checksums, runtimeChecksums);
+  }
+
   const artifacts = buildExportArtifacts({
     packageName: params.packageName,
     workspacePath: params.scan.workspacePath,
@@ -124,6 +184,8 @@ export async function writePackageDirectory(params: {
     warnings: importHints.warnings,
     hasBindings: (params.bindings?.length ?? 0) > 0,
     hasCronJobs: (params.cronJobs?.length ?? 0) > 0,
+    runtimeScan: params.runtimeScan,
+    runtimeManifest: runtimeManifestData,
   });
 
   const manifestJson = JSON.stringify(artifacts.manifest, null, 2);
