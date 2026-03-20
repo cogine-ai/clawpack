@@ -50,3 +50,38 @@ export const SKILL_REFERENCE_PATTERNS = [
   /skills?\/[A-Za-z0-9._-]+\/([a-z0-9][a-z0-9-]*)\b/gi,
   /<name>([a-z0-9][a-z0-9-]*)<\/name>/gi,
 ];
+
+export const RUNTIME_ALLOWLIST_DEFAULT: string[] = [
+  'AGENTS.md',
+  'settings.json',
+  'prompts/**',
+  'themes/**',
+  'models.json',
+];
+
+export const RUNTIME_ALLOWLIST_FULL_EXTRA: string[] = [
+  'skills/**',
+  'extensions/**',
+];
+
+export const RUNTIME_ALWAYS_EXCLUDE: string[] = [
+  'auth-profiles.json',
+  'auth.json',
+  'sessions/**',
+  '.git/**',
+  'npm/**',
+  'node_modules/**',
+  'bin/**',
+  'tools/**',
+  'caches/**',
+  'logs/**',
+];
+
+export const RUNTIME_EXCLUDE_EXTENSIONS: string[] = [
+  '.log',
+  '.lock',
+  '.tmp',
+  '.bak',
+  '.swp',
+  '.pid',
+];
