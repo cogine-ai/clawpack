@@ -6,6 +6,7 @@ import { pushSection } from '../utils/output';
 interface ValidateOptions {
   targetWorkspace: string;
   agentId?: string;
+  targetAgentDir?: string;
   config?: string;
   json?: boolean;
 }
@@ -18,6 +19,7 @@ export async function runValidate(options: ValidateOptions): Promise<void> {
   const report = await validateImportedWorkspace({
     targetWorkspacePath: path.resolve(options.targetWorkspace),
     agentId: options.agentId,
+    targetAgentDir: options.targetAgentDir,
     targetConfigPath: options.config ? path.resolve(options.config) : undefined,
   });
 
@@ -41,6 +43,7 @@ export function registerValidateCommand(command: Command): void {
     .description('Validate an imported workspace and optional config wiring.')
     .requiredOption('--target-workspace <path>', 'Imported target workspace path')
     .option('--agent-id <id>', 'Expected target agent id')
+    .option('--target-agent-dir <path>', 'Expected target agentDir for runtime validation')
     .option('--config <path>', 'Target OpenClaw config path for consistency checks')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runValidate);

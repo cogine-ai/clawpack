@@ -188,6 +188,26 @@ export interface ReadPackageResult {
   runtimeManifest?: RuntimeManifest;
 }
 
+export interface RuntimeWritePlan {
+  files: Array<{
+    sourcePath: string;
+    targetPath: string;
+    relativePath: string;
+  }>;
+  targetAgentDir: string;
+  sourceAgentDir: string;
+  sourceWorkspacePath: string;
+  pathRewrites: PathRewrite[];
+  overwriteExisting: boolean;
+}
+
+export interface PathRewrite {
+  key: string;
+  originalValue: string;
+  rewrittenValue: string;
+  classification: SettingsPathClassification;
+}
+
 export interface ImportWritePlan {
   workspaceFiles: Array<{
     sourcePath: string;
@@ -199,11 +219,15 @@ export interface ImportWritePlan {
   targetAgentId: string;
   metadataDirectory: string;
   targetConfigPath?: string;
+  runtimePlan?: RuntimeWritePlan;
   summary: {
     fileCount: number;
     existingWorkspaceDetected: boolean;
     targetConfigDetected: boolean;
     configAgentCollision: boolean;
+    runtimeFileCount: number;
+    runtimeCollisions: boolean;
+    targetAgentDirDetected: boolean;
   };
 }
 
@@ -230,10 +254,12 @@ export type ImportPlan = BlockedImportPlan | ExecutableImportPlan;
 export interface ImportResult {
   status: 'ok';
   importedFiles: string[];
+  importedRuntimeFiles: string[];
   metadataFiles: string[];
   warnings: string[];
   nextSteps: string[];
   targetWorkspacePath: string;
+  targetAgentDir?: string;
   agentId: string;
 }
 

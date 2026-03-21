@@ -1,8 +1,7 @@
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { AgentDefinition } from './types';
-import { readFile, writeFile } from 'node:fs/promises';
 import stripJsonComments from 'strip-json-comments';
+import type { AgentDefinition } from './types';
 
 export interface AgentConfigEntry {
   id?: string;
@@ -36,7 +35,9 @@ export interface MinimalOpenClawConfig {
   [key: string]: unknown;
 }
 
-export async function discoverOpenClawConfig(params: { configPath?: string; cwd?: string } = {}): Promise<{ configPath: string }> {
+export async function discoverOpenClawConfig(
+  params: { configPath?: string; cwd?: string } = {},
+): Promise<{ configPath: string }> {
   const candidates = params.configPath
     ? [path.resolve(params.configPath)]
     : process.env.OPENCLAW_CONFIG_PATH
@@ -53,7 +54,10 @@ export async function discoverOpenClawConfig(params: { configPath?: string; cwd?
   throw new Error(`OpenClaw config not found. Checked: ${candidates.join(', ')}`);
 }
 
-export async function loadOpenClawConfig(params: { configPath?: string; cwd?: string }): Promise<{ configPath: string; config: MinimalOpenClawConfig }> {
+export async function loadOpenClawConfig(params: {
+  configPath?: string;
+  cwd?: string;
+}): Promise<{ configPath: string; config: MinimalOpenClawConfig }> {
   const discovered = await discoverOpenClawConfig(params);
   const raw = await readFile(discovered.configPath, 'utf8');
   return {
@@ -62,7 +66,10 @@ export async function loadOpenClawConfig(params: { configPath?: string; cwd?: st
   };
 }
 
-export async function detectOpenClawVersion(params: { configPath?: string; cwd?: string }): Promise<string | undefined> {
+export async function detectOpenClawVersion(params: {
+  configPath?: string;
+  cwd?: string;
+}): Promise<string | undefined> {
   try {
     const { config } = await loadOpenClawConfig(params);
     return extractOpenClawVersion(config);
@@ -90,9 +97,7 @@ export async function resolveAgentDir(params: {
     if (!resolved?.agent.agentDir) return undefined;
 
     const agentDir = resolved.agent.agentDir;
-    return path.isAbsolute(agentDir)
-      ? agentDir
-      : path.resolve(path.dirname(configPath), agentDir);
+    return path.isAbsolute(agentDir) ? agentDir : path.resolve(path.dirname(configPath), agentDir);
   } catch {
     return undefined;
   }
@@ -162,7 +167,14 @@ export function extractPortableAgentDefinition(params: {
     toTitleCase(selectedAgentId.replace(/-/g, ' '));
   const identityName = sourceAgent.identity?.name ?? topLevelIdentityName ?? suggestedName;
 
-  const { identity: _identity, name: _name, id: _id, workspace: _workspace, default: _default, ...extraFields } = sourceAgent;
+  const {
+    identity: _identity,
+    name: _name,
+    id: _id,
+    workspace: _workspace,
+    default: _default,
+    ...extraFields
+  } = sourceAgent;
 
   const modelConfig = sourceAgent.model?.default
     ? { default: sourceAgent.model.default, ...sourceAgent.model }
@@ -180,16 +192,28 @@ export function extractPortableAgentDefinition(params: {
         name: identityName,
       },
       model: modelConfig,
-      ...(extraFields.tools ? { tools: extraFields.tools as AgentDefinition['agent']['tools'] } : {}),
+      ...(extraFields.tools
+        ? { tools: extraFields.tools as AgentDefinition['agent']['tools'] }
+        : {}),
       ...(extraFields.skills ? { skills: extraFields.skills as string[] } : {}),
-      ...(extraFields.heartbeat ? { heartbeat: extraFields.heartbeat as Record<string, unknown> } : {}),
+      ...(extraFields.heartbeat
+        ? { heartbeat: extraFields.heartbeat as Record<string, unknown> }
+        : {}),
       ...(extraFields.sandbox ? { sandbox: extraFields.sandbox as Record<string, unknown> } : {}),
       ...(extraFields.runtime ? { runtime: extraFields.runtime as Record<string, unknown> } : {}),
       ...(extraFields.params ? { params: extraFields.params as Record<string, unknown> } : {}),
-      ...(extraFields.subagents ? { subagents: extraFields.subagents as Record<string, unknown> } : {}),
-      ...(extraFields.groupChat ? { groupChat: extraFields.groupChat as Record<string, unknown> } : {}),
-      ...(extraFields.humanDelay ? { humanDelay: extraFields.humanDelay as Record<string, unknown> } : {}),
-      ...(extraFields.memorySearch ? { memorySearch: extraFields.memorySearch as Record<string, unknown> } : {}),
+      ...(extraFields.subagents
+        ? { subagents: extraFields.subagents as Record<string, unknown> }
+        : {}),
+      ...(extraFields.groupChat
+        ? { groupChat: extraFields.groupChat as Record<string, unknown> }
+        : {}),
+      ...(extraFields.humanDelay
+        ? { humanDelay: extraFields.humanDelay as Record<string, unknown> }
+        : {}),
+      ...(extraFields.memorySearch
+        ? { memorySearch: extraFields.memorySearch as Record<string, unknown> }
+        : {}),
     },
     fieldClassification: {
       'agent.suggestedId': 'requiresInputOnImport',
@@ -222,6 +246,7 @@ export async function upsertPortableAgentDefinition(params: {
   portableAgentDefinition: AgentDefinition;
   targetAgentId: string;
   targetWorkspacePath: string;
+  targetAgentDir?: string;
   force?: boolean;
 }): Promise<{ configPath: string; created: boolean; updated: boolean }> {
   const resolvedPath = path.resolve(params.configPath);
@@ -242,6 +267,7 @@ export async function upsertPortableAgentDefinition(params: {
     id: params.targetAgentId,
     name: params.portableAgentDefinition.agent.suggestedName,
     workspace: params.targetWorkspacePath,
+    ...(params.targetAgentDir ? { agentDir: params.targetAgentDir } : {}),
     identity: {
       name: params.portableAgentDefinition.agent.identity.name,
     },
