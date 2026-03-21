@@ -21,7 +21,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     throw new Error('inspect requires --workspace <path>');
   }
 
-  const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
+  const runtimeMode = normalizeRuntimeMode(options.runtimeMode) ?? 'default';
   const workspacePath = path.resolve(options.workspace);
   const scan = await scanWorkspace(workspacePath);
   const skills = await detectSkills(scan);
@@ -35,7 +35,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   ];
 
   let runtimeResult: RuntimeScanResult | undefined;
-  if (runtimeMode && runtimeMode !== 'none') {
+  if (runtimeMode !== 'none') {
     const agentDir = await resolveAgentDir({
       configPath: options.config,
       workspacePath,
@@ -59,6 +59,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
 
   const report = {
     workspacePath,
+    runtimeMode,
     includedFiles: scan.includedFiles.map((file) => file.relativePath),
     bootstrapFiles,
     excludedFiles: scan.excludedFiles,
@@ -104,6 +105,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `Skills (referenced): ${skills.referencedSkills.join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
+    `Runtime mode: ${report.runtimeMode}`,
   ];
 
   if (report.portableConfig.notes.length > 0) {
@@ -111,7 +113,6 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   }
 
   if (runtimeResult) {
-    lines.push(`Runtime mode: ${runtimeResult.mode}`);
     lines.push(`Runtime agentDir: ${runtimeResult.agentDir}`);
     lines.push(`Runtime included files (${runtimeResult.includedFiles.length}): ${runtimeResult.includedFiles.map(f => f.relativePath).join(', ') || 'none'}`);
     lines.push(`Runtime excluded files (${runtimeResult.excludedFiles.length}): ${runtimeResult.excludedFiles.map(f => `${f.relativePath} [${f.reason}]`).join(', ') || 'none'}`);

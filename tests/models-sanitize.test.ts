@@ -44,7 +44,11 @@ test('sanitizeModelsJson recursively strips nested secrets inside header values 
         headers: {
           'X-Custom': {
             token: 'secret',
-            nested: [{ secretKey: 'hidden', keep: 'value' }],
+            nested: [
+              { secretKey: 'hidden', keep: 'value' },
+              { apiKey: 'remove-me' },
+              { $secretRef: 'TRACE_TOKEN' },
+            ],
             mode: 'safe',
           },
           'X-Trace': { $secretRef: 'TRACE_TOKEN' },
@@ -59,6 +63,7 @@ test('sanitizeModelsJson recursively strips nested secrets inside header values 
 
   assert.equal(model.headers['X-Trace'], undefined);
   assert.equal(model.headers['X-Custom'].token, undefined);
+  assert.equal(model.headers['X-Custom'].nested.length, 1);
   assert.equal(model.headers['X-Custom'].nested[0].secretKey, undefined);
   assert.equal(model.headers['X-Custom'].nested[0].keep, 'value');
   assert.equal(model.headers['X-Custom'].mode, 'safe');

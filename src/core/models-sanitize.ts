@@ -52,7 +52,16 @@ function deepSanitize(
   }
 
   if (Array.isArray(value)) {
-    return value.map((item, i) => deepSanitize(item, `${keyPath}[${i}]`, warnings));
+    const result: unknown[] = [];
+    for (const [i, item] of value.entries()) {
+      const sanitized = deepSanitize(item, `${keyPath}[${i}]`, warnings);
+      if (sanitized === undefined) continue;
+      if (typeof sanitized === 'object' && sanitized !== null && !hasUsefulContent(sanitized)) {
+        continue;
+      }
+      result.push(sanitized);
+    }
+    return result;
   }
 
   if (typeof value === 'object') {

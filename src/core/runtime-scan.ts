@@ -124,18 +124,23 @@ async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry);
-    const entryStat = await lstat(fullPath);
     const relativePath = prefix ? `${prefix}/${entry}` : entry;
 
-    if (entryStat.isSymbolicLink()) {
-      continue;
-    }
+    try {
+      const entryStat = await lstat(fullPath);
 
-    if (entryStat.isDirectory()) {
-      const subFiles = await collectFiles(fullPath, relativePath);
-      files.push(...subFiles);
-    } else if (entryStat.isFile()) {
-      files.push(relativePath);
+      if (entryStat.isSymbolicLink()) {
+        continue;
+      }
+
+      if (entryStat.isDirectory()) {
+        const subFiles = await collectFiles(fullPath, relativePath);
+        files.push(...subFiles);
+      } else if (entryStat.isFile()) {
+        files.push(relativePath);
+      }
+    } catch {
+      continue;
     }
   }
 

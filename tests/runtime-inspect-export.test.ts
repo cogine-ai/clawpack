@@ -72,10 +72,21 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
   assert.ok(Array.isArray(report.runtime.includedFiles));
 });
 
-test('inspect without --runtime-mode does not show runtime section', async () => {
+test('inspect without --runtime-mode defaults to resolved runtime mode output', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'inspect-ws-none'));
   const { stdout } = await runCli(['inspect', '--workspace', wsPath]);
-  assert.ok(!stdout.includes('Runtime mode:'));
+  assert.match(stdout, /Runtime mode: default/);
+});
+
+test('inspect without resolved agentDir still prints resolved runtime mode', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'inspect-ws-no-agentdir-mode'));
+  const { stdout } = await runCli([
+    'inspect',
+    '--workspace', wsPath,
+    '--runtime-mode', 'default',
+  ]);
+  assert.match(stdout, /Runtime mode: default/);
+  assert.match(stdout, /[Cc]ould not resolve|agentDir/);
 });
 
 test('inspect --runtime-mode default warns when agentDir unresolvable', async () => {

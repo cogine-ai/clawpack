@@ -146,6 +146,21 @@ test('scanRuntime skips symlinked files and directories', async () => {
   assert.ok(!result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
 });
 
+test('scanRuntime tolerates entries that disappear during collection', async () => {
+  const agentDir = await setupAgentDir({
+    'settings.json': '{}',
+    'prompts/keep.md': '# keep',
+  });
+
+  const transientPath = path.join(agentDir, 'prompts', 'gone.md');
+  await writeFile(transientPath, '# gone', 'utf8');
+  await rm(transientPath, { force: true });
+
+  const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/keep.md'));
+});
+
 test('scanRuntime returns included files in deterministic sorted order', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
