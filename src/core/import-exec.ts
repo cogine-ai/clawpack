@@ -83,19 +83,22 @@ async function executeRuntimeImport(params: {
 
     if (file.relativePath === 'settings.json' && rp.pathRewrites.length > 0) {
       const raw = await readFile(file.sourcePath, 'utf8');
+      let parsed: Record<string, unknown>;
       try {
-        const parsed = JSON.parse(raw);
-        const rewritten = applyPathRewrites(
-          parsed,
-          rp.sourceWorkspacePath,
-          rp.sourceAgentDir,
-          params.plan.writePlan.targetWorkspacePath,
-          rp.targetAgentDir,
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error(
+          `Failed to parse ${file.sourcePath} for path rewriting: ${err instanceof Error ? err.message : String(err)}`,
         );
-        await writeFile(file.targetPath, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf8');
-      } catch {
-        await cp(file.sourcePath, file.targetPath);
       }
+      const rewritten = applyPathRewrites(
+        parsed,
+        rp.sourceWorkspacePath,
+        rp.sourceAgentDir,
+        params.plan.writePlan.targetWorkspacePath,
+        rp.targetAgentDir,
+      );
+      await writeFile(file.targetPath, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf8');
     } else {
       await cp(file.sourcePath, file.targetPath);
     }

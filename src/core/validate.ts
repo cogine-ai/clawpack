@@ -38,6 +38,7 @@ export async function validateImportedWorkspace(params: {
 
   const metadataDirectory = path.join(targetWorkspacePath, '.openclaw-agent-package');
   const agentRecordPath = path.join(metadataDirectory, 'agent-definition.json');
+  let metadataAgentDir: string | undefined;
   if (await pathExists(agentRecordPath)) {
     const agentRecord = await readJsonFile<{
       agentId?: string;
@@ -49,6 +50,9 @@ export async function validateImportedWorkspace(params: {
       report.failed.push(
         `Imported agent record id mismatch: expected ${params.agentId}, got ${agentRecord.agentId ?? 'unknown'}`,
       );
+    }
+    if (agentRecord.targetAgentDir) {
+      metadataAgentDir = agentRecord.targetAgentDir;
     }
   } else {
     report.failed.push(`Missing imported agent definition record: ${agentRecordPath}`);
@@ -91,7 +95,11 @@ export async function validateImportedWorkspace(params: {
     }
   }
 
-  const resolvedAgentDir = params.targetAgentDir ? path.resolve(params.targetAgentDir) : undefined;
+  const resolvedAgentDir = params.targetAgentDir
+    ? path.resolve(params.targetAgentDir)
+    : metadataAgentDir
+      ? path.resolve(metadataAgentDir)
+      : undefined;
 
   if (resolvedAgentDir) {
     await validateRuntimeLayer(report, {
@@ -159,7 +167,7 @@ async function validateRuntimeLayer(
     const authPath = path.join(targetAgentDir, authFile);
     if (await pathExists(authPath)) {
       report.warnings.push(
-        `Auth file present in agentDir (should not have been imported): ${authFile}`,
+        `Auth file present in target agentDir — verify it is local state and not imported: ${authFile}`,
       );
     } else {
       report.passed.push(`Excluded auth file correctly absent: ${authFile}`);

@@ -89,6 +89,7 @@ test('Validate detects agentDir mismatch in config', async () => {
   const { targetWorkspace, configPath } = await importWithRuntime(dir);
 
   const wrongDir = path.join(tmpBase, dir, 'wrong-agent-dir');
+  await mkdir(wrongDir, { recursive: true });
 
   const report = await validateImportedWorkspace({
     targetWorkspacePath: targetWorkspace,
@@ -97,7 +98,7 @@ test('Validate detects agentDir mismatch in config', async () => {
     targetConfigPath: configPath,
   });
 
-  assert.ok(report.failed.some((f) => f.includes('agentDir') && f.includes('missing')));
+  assert.ok(report.failed.some((f) => f.includes('agentDir mismatch')));
 });
 
 test('Validate warns about auth files if they exist', async () => {
@@ -114,7 +115,7 @@ test('Validate warns about auth files if they exist', async () => {
     targetConfigPath: configPath,
   });
 
-  assert.ok(report.warnings.some((w) => w.includes('auth.json') && w.includes('should not have been imported')));
+  assert.ok(report.warnings.some((w) => w.includes('auth.json') && w.includes('not imported')));
 });
 
 test('Validate confirms settings.json is valid JSON', async () => {
@@ -132,10 +133,10 @@ test('Validate confirms settings.json is valid JSON', async () => {
   assert.ok(report.passed.some((p) => p.includes('settings.json is valid JSON')));
 });
 
-test('Validate without --target-agent-dir skips runtime checks', async () => {
-  const dir = 'no-rt-flag';
+test('Validate auto-infers targetAgentDir from import metadata when flag not provided', async () => {
+  const dir = 'auto-infer';
   await cleanup(dir);
-  const { targetWorkspace, configPath } = await importWithRuntime(dir);
+  const { targetWorkspace, targetAgentDir, configPath } = await importWithRuntime(dir);
 
   const report = await validateImportedWorkspace({
     targetWorkspacePath: targetWorkspace,
@@ -143,8 +144,11 @@ test('Validate without --target-agent-dir skips runtime checks', async () => {
     targetConfigPath: configPath,
   });
 
-  const hasRuntimeChecks = report.passed.some((p) => p.includes('Runtime'));
-  assert.equal(hasRuntimeChecks, false);
+  assert.ok(
+    report.passed.some((p) => p.includes('Runtime agentDir exists')),
+    'Should auto-infer agentDir from import metadata and run runtime validation',
+  );
+  assert.ok(report.passed.some((p) => p.includes('Runtime file present')));
 });
 
 test('Validate detects missing agentDir directory', async () => {

@@ -270,9 +270,9 @@ async function planRuntimeImport(params: {
         );
         nextSteps.push('Review path references in settings.json and update manually after import.');
       }
-    } catch {
+    } catch (err) {
       warnings.push(
-        'Could not parse settings-analysis.json from package — path rewrites will be skipped.',
+        `Could not parse settings-analysis.json from package — path rewrites will be skipped: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
