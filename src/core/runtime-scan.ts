@@ -46,10 +46,10 @@ export async function scanRuntime(params: {
     ? [...RUNTIME_ALLOWLIST_DEFAULT, ...RUNTIME_ALLOWLIST_FULL_EXTRA]
     : [...RUNTIME_ALLOWLIST_DEFAULT];
 
-  const allFiles = await collectFiles(agentDir);
   const includedFiles: Array<{ relativePath: string; absolutePath: string }> = [];
   const excludedFiles: ExcludedWorkspaceFile[] = [];
   const warnings: string[] = [];
+  const allFiles = await collectFiles(agentDir, '', warnings);
 
   for (const relativePath of allFiles) {
     const absolutePath = path.join(agentDir, relativePath);
@@ -70,6 +70,11 @@ export async function scanRuntime(params: {
 
     if (matchesAllowlist(relativePath, allowlist)) {
       includedFiles.push({ relativePath, absolutePath });
+      continue;
+    }
+
+    if (mode !== 'full' && matchesAllowlist(relativePath, RUNTIME_ALLOWLIST_FULL_EXTRA)) {
+      excludedFiles.push({ relativePath, reason: 'Excluded: requires full mode' });
     }
   }
 
@@ -113,12 +118,13 @@ export async function scanRuntime(params: {
   };
 }
 
-async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
+async function collectFiles(dir: string, prefix = '', warnings: string[] = []): Promise<string[]> {
   const files: string[] = [];
   let entries: string[];
   try {
     entries = (await readdir(dir)).sort((left, right) => left.localeCompare(right));
-  } catch {
+  } catch (error) {
+    warnings.push(`Could not read runtime path ${dir}: ${String(error)}`);
     return files;
   }
 
@@ -134,12 +140,13 @@ async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
       }
 
       if (entryStat.isDirectory()) {
-        const subFiles = await collectFiles(fullPath, relativePath);
+        const subFiles = await collectFiles(fullPath, relativePath, warnings);
         files.push(...subFiles);
       } else if (entryStat.isFile()) {
         files.push(relativePath);
       }
-    } catch {
+    } catch (error) {
+      warnings.push(`Could not inspect runtime path ${fullPath}: ${String(error)}`);
       continue;
     }
   }
@@ -151,7 +158,7 @@ function matchesAllowlist(relativePath: string, allowlist: string[]): boolean {
   for (const pattern of allowlist) {
     if (pattern.endsWith('/**')) {
       const prefix = pattern.slice(0, -3);
-      if (relativePath.startsWith(`${prefix}/`) || relativePath === prefix) return true;
+      if (relativePath.startsWith(`${prefix}/`)) return true;
     } else if (pattern === relativePath) {
       return true;
     }

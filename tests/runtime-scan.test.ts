@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { scanRuntime } from '../src/core/runtime-scan';
@@ -50,7 +50,7 @@ test('scanRuntime mode=default includes prompts/** and themes/**', async () => {
   assert.ok(result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
 });
 
-test('scanRuntime mode=default excludes skills/** and extensions/**', async () => {
+test('scanRuntime mode=default excludes skills/** and extensions/** with explicit reasons', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
     'skills/my-skill/SKILL.md': '# Skill',
@@ -59,6 +59,8 @@ test('scanRuntime mode=default excludes skills/** and extensions/**', async () =
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.ok(!result.includedFiles.some(f => f.relativePath.startsWith('skills/')));
   assert.ok(!result.includedFiles.some(f => f.relativePath.startsWith('extensions/')));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md' && /full mode/i.test(f.reason)));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'extensions/ext1/package.json' && /full mode/i.test(f.reason)));
 });
 
 test('scanRuntime mode=full includes skills/** and extensions/**', async () => {
@@ -146,19 +148,36 @@ test('scanRuntime skips symlinked files and directories', async () => {
   assert.ok(!result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
 });
 
-test('scanRuntime tolerates entries that disappear during collection', async () => {
+test('scanRuntime reports directory read failures in warnings', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
     'prompts/keep.md': '# keep',
   });
 
-  const transientPath = path.join(agentDir, 'prompts', 'gone.md');
-  await writeFile(transientPath, '# gone', 'utf8');
-  await rm(transientPath, { force: true });
+  const blockedDir = path.join(agentDir, 'prompts', 'blocked');
+  await mkdir(blockedDir, { recursive: true });
+  await writeFile(path.join(blockedDir, 'hidden.md'), '# hidden', 'utf8');
+  await chmod(blockedDir, 0o000);
+
+  try {
+    const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+
+    assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/keep.md'));
+    assert.ok(result.warnings.some(w => /blocked/.test(w)));
+  } finally {
+    await chmod(blockedDir, 0o755);
+  }
+});
+
+test('scanRuntime does not treat a file named like an allowlist directory as a descendant match', async () => {
+  const agentDir = await setupAgentDir({
+    'settings.json': '{}',
+    'prompts': 'plain file, not a directory',
+  });
 
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
 
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/keep.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'prompts'));
 });
 
 test('scanRuntime returns included files in deterministic sorted order', async () => {
