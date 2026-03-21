@@ -118,6 +118,40 @@ test('analyzeSettingsJson handles nested settings objects', () => {
   assert.equal(result.pathRefs.length, 2);
 });
 
+test('analyzeSettingsJson descends into arrays', () => {
+  const settings = {
+    mounts: [
+      { path: './cache' },
+      { nested: ['/usr/local/share/tool'] },
+    ],
+  };
+  const result = analyzeSettingsJson(settings, {
+    workspacePath: '/home/user/workspace',
+    agentDir: '/home/user/.openclaw/agents/test',
+  });
+
+  assert.deepEqual(
+    result.pathRefs.map(ref => ({ key: ref.key, classification: ref.classification })),
+    [
+      { key: 'mounts[0].path', classification: 'relative' },
+      { key: 'mounts[1].nested[0]', classification: 'external-absolute' },
+    ],
+  );
+});
+
+test('analyzeSettingsJson classifies agentDir before workspace when paths overlap', () => {
+  const settings = {
+    state: '/home/user/workspace/.openclaw/agents/test/state.json',
+  };
+  const result = analyzeSettingsJson(settings, {
+    workspacePath: '/home/user/workspace',
+    agentDir: '/home/user/workspace/.openclaw/agents/test',
+  });
+  const ref = result.pathRefs.find(r => r.key === 'state');
+  assert.ok(ref);
+  assert.equal(ref!.classification, 'package-internal-agentDir');
+});
+
 test('analyzeSettingsJson handles empty settings', () => {
   const result = analyzeSettingsJson({}, {
     workspacePath: '/home/user/workspace',

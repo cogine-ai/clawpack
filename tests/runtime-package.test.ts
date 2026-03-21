@@ -142,6 +142,46 @@ test('writePackageDirectory writes sanitized models.json instead of raw', async 
   assert.equal(models.models[0].maxTokens, 4096);
 });
 
+test('writePackageDirectory preserves runtime warnings even when no runtime files are copied', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-runtime-warnings'));
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const outputPath = path.join(tmpBase, 'output-runtime-warnings.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'runtime-warnings-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan: {
+      mode: 'default',
+      agentDir: '/tmp/runtime-agent',
+      includedFiles: [],
+      excludedFiles: [],
+      warnings: ['models.json contained only secrets — skipped entirely.'],
+      sanitizedModels: undefined,
+      settingsAnalysis: undefined,
+    },
+  });
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
+
+  const runtimeManifest = JSON.parse(
+    await readFile(path.join(outputPath, 'runtime', 'manifest.json'), 'utf8'),
+  );
+  assert.deepEqual(runtimeManifest.warnings, ['models.json contained only secrets — skipped entirely.']);
+
+  const checksums = JSON.parse(
+    await readFile(path.join(outputPath, 'meta', 'checksums.json'), 'utf8'),
+  );
+  assert.equal(typeof checksums['runtime/manifest.json'], 'string');
+  assert.equal(typeof checksums['runtime/checksums.json'], 'string');
+  assert.equal(typeof checksums['runtime/path-rewrites.json'], 'string');
+});
+
 test('manifest.includes.runtimeMode reflects runtime mode', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-manifest'));
   const agentDir = path.join(tmpBase, 'agentdir-manifest');

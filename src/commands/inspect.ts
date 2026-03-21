@@ -2,9 +2,10 @@ import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
 import { resolveAgentDir } from '../core/openclaw-config';
+import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
-import type { RuntimeMode, RuntimeScanResult } from '../core/types';
+import type { RuntimeScanResult } from '../core/types';
 import { scanWorkspace } from '../core/workspace-scan';
 
 interface InspectOptions {
@@ -20,6 +21,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     throw new Error('inspect requires --workspace <path>');
   }
 
+  const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const workspacePath = path.resolve(options.workspace);
   const scan = await scanWorkspace(workspacePath);
   const skills = await detectSkills(scan);
@@ -33,11 +35,10 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   ];
 
   let runtimeResult: RuntimeScanResult | undefined;
-  const runtimeMode = (options.runtimeMode as RuntimeMode) ?? undefined;
   if (runtimeMode && runtimeMode !== 'none') {
     const agentDir = await resolveAgentDir({
       configPath: options.config,
-      cwd: workspacePath,
+      workspacePath,
       agentId: options.agentId,
     });
 

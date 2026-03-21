@@ -44,22 +44,31 @@ export function analyzeSettingsJson(
 }
 
 function collectPathRefs(
-  obj: Record<string, unknown>,
+  value: unknown,
   prefix: string,
   refs: SettingsPathRef[],
   context: { workspacePath: string; agentDir: string },
 ): void {
-  for (const [key, value] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key;
+  if (typeof value === 'string' && looksLikePath(value)) {
+    refs.push({
+      key: prefix,
+      value,
+      classification: classifyPath(value, context),
+    });
+    return;
+  }
 
-    if (typeof value === 'string' && looksLikePath(value)) {
-      refs.push({
-        key: fullKey,
-        value,
-        classification: classifyPath(value, context),
-      });
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      collectPathRefs(value as Record<string, unknown>, fullKey, refs, context);
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) {
+      collectPathRefs(item, `${prefix}[${index}]`, refs, context);
+    }
+    return;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    for (const [key, child] of Object.entries(value)) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      collectPathRefs(child, fullKey, refs, context);
     }
   }
 }
@@ -77,11 +86,11 @@ function classifyPath(
   if (HOST_BOUND_PREFIXES.some((p) => value.startsWith(p))) return 'host-bound';
   if (value.startsWith('./') || value.startsWith('../')) return 'relative';
   if (value.startsWith('~/')) return 'external-absolute';
-  if (value.startsWith(context.workspacePath + '/') || value === context.workspacePath) {
-    return 'package-internal-workspace';
-  }
   if (value.startsWith(context.agentDir + '/') || value === context.agentDir) {
     return 'package-internal-agentDir';
+  }
+  if (value.startsWith(context.workspacePath + '/') || value === context.workspacePath) {
+    return 'package-internal-workspace';
   }
   if (value.startsWith('/')) return 'external-absolute';
   return 'relative';

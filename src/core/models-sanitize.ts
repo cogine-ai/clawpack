@@ -96,11 +96,16 @@ function sanitizeHeaders(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(headers)) {
+    const fullPath = `${parentPath}.${key}`;
     if (SECRET_HEADER_KEYS.has(key.toLowerCase())) {
-      warnings.push(`Stripped secret header: ${parentPath}.${key}`);
+      warnings.push(`Stripped secret header: ${fullPath}`);
       continue;
     }
-    result[key] = val;
+
+    const sanitized = deepSanitize(val, fullPath, warnings);
+    if (sanitized !== undefined && hasUsefulContent(sanitized)) {
+      result[key] = sanitized;
+    }
   }
   return result;
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { scanRuntime } from '../src/core/runtime-scan';
@@ -125,6 +125,41 @@ test('scanRuntime excludes temp and log files via extension', async () => {
   assert.ok(!result.includedFiles.some(f => f.relativePath.endsWith('.tmp')));
   assert.ok(!result.includedFiles.some(f => f.relativePath.endsWith('.log')));
   assert.ok(!result.includedFiles.some(f => f.relativePath.endsWith('.lock')));
+});
+
+test('scanRuntime skips symlinked files and directories', async () => {
+  const agentDir = await setupAgentDir({
+    'settings.json': '{}',
+  });
+  const externalDir = path.join(tmpBase, `external-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  await rm(externalDir, { recursive: true, force: true });
+  await mkdir(path.join(externalDir, 'themes'), { recursive: true });
+  await writeFile(path.join(externalDir, 'linked.md'), '# linked', 'utf8');
+  await writeFile(path.join(externalDir, 'themes', 'dark.json'), '{}', 'utf8');
+  await mkdir(path.join(agentDir, 'prompts'), { recursive: true });
+  await symlink(path.join(externalDir, 'linked.md'), path.join(agentDir, 'prompts', 'linked.md'));
+  await symlink(path.join(externalDir, 'themes'), path.join(agentDir, 'themes'));
+
+  const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'prompts/linked.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
+});
+
+test('scanRuntime returns included files in deterministic sorted order', async () => {
+  const agentDir = await setupAgentDir({
+    'settings.json': '{}',
+    'AGENTS.md': '# Agents',
+    'prompts/z-last.md': '# Z',
+    'prompts/a-first.md': '# A',
+  });
+
+  const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+
+  assert.deepEqual(
+    result.includedFiles.map(f => f.relativePath),
+    ['AGENTS.md', 'prompts/a-first.md', 'prompts/z-last.md', 'settings.json'],
+  );
 });
 
 test('scanRuntime handles nonexistent agentDir gracefully', async () => {

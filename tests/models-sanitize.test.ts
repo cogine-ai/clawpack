@@ -36,6 +36,35 @@ test('sanitizeModelsJson strips secret-like headers', () => {
   assert.equal(model.headers['Content-Type'], 'application/json');
 });
 
+test('sanitizeModelsJson recursively strips nested secrets inside header values and arrays', () => {
+  const input = {
+    models: [
+      {
+        id: 'custom',
+        headers: {
+          'X-Custom': {
+            token: 'secret',
+            nested: [{ secretKey: 'hidden', keep: 'value' }],
+            mode: 'safe',
+          },
+          'X-Trace': { $secretRef: 'TRACE_TOKEN' },
+          'Content-Type': 'application/json',
+        },
+      },
+    ],
+  };
+
+  const result = sanitizeModelsJson(input);
+  const model = (result.sanitized as any).models[0];
+
+  assert.equal(model.headers['X-Trace'], undefined);
+  assert.equal(model.headers['X-Custom'].token, undefined);
+  assert.equal(model.headers['X-Custom'].nested[0].secretKey, undefined);
+  assert.equal(model.headers['X-Custom'].nested[0].keep, 'value');
+  assert.equal(model.headers['X-Custom'].mode, 'safe');
+  assert.equal(model.headers['Content-Type'], 'application/json');
+});
+
 test('sanitizeModelsJson strips SecretRef objects', () => {
   const input = {
     models: [

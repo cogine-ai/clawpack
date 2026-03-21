@@ -119,19 +119,31 @@ export async function writePackageDirectory(params: {
 
   let runtimeManifestData: RuntimeManifest | undefined;
 
-  if (params.runtimeScan && params.runtimeScan.mode !== 'none' && params.runtimeScan.includedFiles.length > 0) {
+  const shouldWriteRuntimeMetadata =
+    params.runtimeScan &&
+    params.runtimeScan.mode !== 'none' &&
+    (
+      params.runtimeScan.includedFiles.length > 0 ||
+      params.runtimeScan.excludedFiles.length > 0 ||
+      params.runtimeScan.warnings.length > 0 ||
+      params.runtimeScan.sanitizedModels !== undefined ||
+      params.runtimeScan.settingsAnalysis !== undefined
+    );
+
+  if (shouldWriteRuntimeMetadata) {
+    const runtimeScan = params.runtimeScan!;
     const runtimeDir = path.join(params.outputPath, 'runtime');
     const runtimeFilesDir = path.join(runtimeDir, 'files');
     await mkdir(runtimeFilesDir, { recursive: true });
 
     const runtimeChecksums: Record<string, string> = {};
 
-    for (const file of params.runtimeScan.includedFiles) {
+    for (const file of runtimeScan.includedFiles) {
       const targetPath = path.join(runtimeFilesDir, file.relativePath);
       await mkdir(path.dirname(targetPath), { recursive: true });
 
-      if (file.relativePath === 'models.json' && params.runtimeScan.sanitizedModels) {
-        const sanitizedJson = JSON.stringify(params.runtimeScan.sanitizedModels, null, 2);
+      if (file.relativePath === 'models.json' && runtimeScan.sanitizedModels) {
+        const sanitizedJson = JSON.stringify(runtimeScan.sanitizedModels, null, 2);
         await writeFile(targetPath, `${sanitizedJson}\n`, 'utf8');
         runtimeChecksums[path.posix.join('runtime/files', file.relativePath)] = checksumText(`${sanitizedJson}\n`);
       } else {
@@ -141,16 +153,16 @@ export async function writePackageDirectory(params: {
     }
 
     runtimeManifestData = {
-      mode: params.runtimeScan.mode,
-      agentDir: params.runtimeScan.agentDir,
-      includedFiles: params.runtimeScan.includedFiles.map(f => f.relativePath),
-      excludedFiles: params.runtimeScan.excludedFiles,
-      warnings: params.runtimeScan.warnings,
-      modelsSanitized: params.runtimeScan.sanitizedModels !== undefined,
-      modelsSkipped: params.runtimeScan.sanitizedModels === undefined &&
-        !params.runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
-        params.runtimeScan.warnings.some(w => w.includes('models.json')),
-      settingsAnalysisIncluded: params.runtimeScan.settingsAnalysis !== undefined,
+      mode: runtimeScan.mode,
+      agentDir: runtimeScan.agentDir,
+      includedFiles: runtimeScan.includedFiles.map(f => f.relativePath),
+      excludedFiles: runtimeScan.excludedFiles,
+      warnings: runtimeScan.warnings,
+      modelsSanitized: runtimeScan.sanitizedModels !== undefined,
+      modelsSkipped: runtimeScan.sanitizedModels === undefined &&
+        !runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
+        runtimeScan.warnings.some(w => w.includes('models.json')),
+      settingsAnalysisIncluded: runtimeScan.settingsAnalysis !== undefined,
     };
 
     const runtimeManifestJson = JSON.stringify(runtimeManifestData, null, 2);
@@ -162,8 +174,8 @@ export async function writePackageDirectory(params: {
     const pathRewrites = JSON.stringify({}, null, 2);
     await writeFile(path.join(runtimeDir, 'path-rewrites.json'), `${pathRewrites}\n`, 'utf8');
 
-    if (params.runtimeScan.settingsAnalysis) {
-      const analysisJson = JSON.stringify(params.runtimeScan.settingsAnalysis, null, 2);
+    if (runtimeScan.settingsAnalysis) {
+      const analysisJson = JSON.stringify(runtimeScan.settingsAnalysis, null, 2);
       await writeFile(path.join(runtimeDir, 'settings-analysis.json'), `${analysisJson}\n`, 'utf8');
     }
 

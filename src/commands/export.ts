@@ -3,9 +3,10 @@ import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
 import { detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
 import { writePackageArchive, writePackageDirectory } from '../core/package-write';
+import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
-import type { RuntimeMode, RuntimeScanResult } from '../core/types';
+import type { RuntimeScanResult } from '../core/types';
 import { scanWorkspace } from '../core/workspace-scan';
 
 interface ExportOptions {
@@ -24,6 +25,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     throw new Error('export requires --workspace <path> and --out <path>');
   }
 
+  const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const scan = await scanWorkspace(path.resolve(options.workspace));
   const skills = await detectSkills(scan);
   const agentDefinition = await extractAgentDefinition(scan.workspacePath, {
@@ -38,11 +40,10 @@ export async function runExport(options: ExportOptions): Promise<void> {
     options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
 
   let runtimeScan: RuntimeScanResult | undefined;
-  const runtimeMode = (options.runtimeMode as RuntimeMode) ?? undefined;
   if (runtimeMode && runtimeMode !== 'none') {
     const agentDir = await resolveAgentDir({
       configPath: options.config,
-      cwd: scan.workspacePath,
+      workspacePath: scan.workspacePath,
       agentId: options.agentId,
     });
 

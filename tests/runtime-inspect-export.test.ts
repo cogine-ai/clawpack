@@ -64,7 +64,7 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
     'inspect',
     '--workspace', wsPath,
     '--config', configPath,
-    '--runtime-mode', 'default',
+    '--runtime-mode', 'DEFAULT',
     '--json',
   ]);
   const report = JSON.parse(stdout);
@@ -199,5 +199,44 @@ test('export --runtime-mode default errors when agentDir unresolvable', async ()
       err.stderr?.includes('agentDir') || err.message?.includes('agentDir'),
       'Error should mention agentDir',
     );
+  }
+});
+
+test('export rejects invalid --runtime-mode values', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-invalid-mode'));
+  const agentDir = path.join(tmpBase, 'export-agentdir-invalid-mode');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+
+  const configPath = path.join(tmpBase, 'export-config-invalid-mode.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agent: {
+        id: 'test-agent',
+        name: 'Test',
+        workspace: wsPath,
+        agentDir,
+      },
+    }),
+    'utf8',
+  );
+
+  const outputPath = path.join(tmpBase, 'export-output-invalid-mode.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  try {
+    await runCli([
+      'export',
+      '--workspace', wsPath,
+      '--out', outputPath,
+      '--config', configPath,
+      '--runtime-mode', 'sideways',
+    ]);
+    assert.fail('Expected export to fail for invalid runtime mode');
+  } catch (err: any) {
+    assert.match(err.stderr ?? err.message ?? '', /runtime-mode/i);
+    assert.match(err.stderr ?? err.message ?? '', /none|default|full/);
   }
 });

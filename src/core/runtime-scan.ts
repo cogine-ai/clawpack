@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import {
   RUNTIME_ALLOWLIST_DEFAULT,
@@ -117,15 +117,19 @@ async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
   const files: string[] = [];
   let entries: string[];
   try {
-    entries = await readdir(dir);
+    entries = (await readdir(dir)).sort((left, right) => left.localeCompare(right));
   } catch {
     return files;
   }
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry);
-    const entryStat = await stat(fullPath);
+    const entryStat = await lstat(fullPath);
     const relativePath = prefix ? `${prefix}/${entry}` : entry;
+
+    if (entryStat.isSymbolicLink()) {
+      continue;
+    }
 
     if (entryStat.isDirectory()) {
       const subFiles = await collectFiles(fullPath, relativePath);
@@ -169,7 +173,7 @@ function isExcludedByExtension(relativePath: string): boolean {
 
 async function isDirectory(dirPath: string): Promise<boolean> {
   try {
-    const s = await stat(dirPath);
+    const s = await lstat(dirPath);
     return s.isDirectory();
   } catch {
     return false;

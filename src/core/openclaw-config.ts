@@ -75,10 +75,18 @@ export async function resolveAgentDir(params: {
   configPath?: string;
   cwd?: string;
   agentId?: string;
+  workspacePath?: string;
 }): Promise<string | undefined> {
   try {
     const { config, configPath } = await loadOpenClawConfig(params);
-    const resolved = resolveAgentFromConfig(config, params.agentId);
+    const workspacePath = params.workspacePath ?? params.cwd;
+    const resolved =
+      (params.agentId
+        ? resolveAgentFromConfig(config, params.agentId)
+        : workspacePath
+          ? findAgentByWorkspace(config, workspacePath)
+          : undefined) ?? resolveAgentFromConfig(config, params.agentId);
+
     if (!resolved?.agent.agentDir) return undefined;
 
     const agentDir = resolved.agent.agentDir;
