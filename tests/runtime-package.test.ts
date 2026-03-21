@@ -1,0 +1,261 @@
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import test from 'node:test';
+import { writePackageDirectory } from '../src/core/package-write';
+import { readPackageDirectory } from '../src/core/package-read';
+import { scanWorkspace } from '../src/core/workspace-scan';
+import { detectSkills } from '../src/core/skills-detect';
+import { extractAgentDefinition } from '../src/core/agent-extract';
+import { scanRuntime } from '../src/core/runtime-scan';
+import { createTempWorkspace } from './helpers/workspace-factory';
+
+const tmpBase = path.resolve('tests/tmp/runtime-pkg');
+
+test('writePackageDirectory writes runtime subtree when runtimeScan provided', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws'));
+  const agentDir = path.join(tmpBase, 'agentdir');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{"theme":"dark"}', 'utf8');
+  await writeFile(path.join(agentDir, 'AGENTS.md'), '# Agents', 'utf8');
+  await mkdir(path.join(agentDir, 'prompts'), { recursive: true });
+  await writeFile(path.join(agentDir, 'prompts', 'system.md'), '# System', 'utf8');
+
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+
+  const outputPath = path.join(tmpBase, 'output.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'runtime-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan,
+  });
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'checksums.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'path-rewrites.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'AGENTS.md')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'prompts', 'system.md')));
+
+  const runtimeManifest = JSON.parse(
+    await readFile(path.join(outputPath, 'runtime', 'manifest.json'), 'utf8'),
+  );
+  assert.equal(runtimeManifest.mode, 'default');
+  assert.ok(runtimeManifest.includedFiles.includes('settings.json'));
+});
+
+test('writePackageDirectory omits runtime subtree when no runtimeScan', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-nort'));
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+
+  const outputPath = path.join(tmpBase, 'output-nort.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'no-runtime-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+  });
+
+  assert.equal(existsSync(path.join(outputPath, 'runtime')), false);
+});
+
+test('writePackageDirectory includes settings-analysis.json when analysis exists', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-sa'));
+  const agentDir = path.join(tmpBase, 'agentdir-sa');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, 'settings.json'),
+    JSON.stringify({ 'data.path': '/usr/local/data' }),
+    'utf8',
+  );
+
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+
+  const outputPath = path.join(tmpBase, 'output-sa.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'settings-analysis-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan,
+  });
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'settings-analysis.json')));
+  const analysis = JSON.parse(
+    await readFile(path.join(outputPath, 'runtime', 'settings-analysis.json'), 'utf8'),
+  );
+  assert.ok(analysis.pathRefs);
+  assert.ok(analysis.summary);
+});
+
+test('writePackageDirectory writes sanitized models.json instead of raw', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-models'));
+  const agentDir = path.join(tmpBase, 'agentdir-models');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, 'models.json'),
+    JSON.stringify({ models: [{ id: 'gpt-4', apiKey: 'sk-xxx', maxTokens: 4096 }] }),
+    'utf8',
+  );
+
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+
+  const outputPath = path.join(tmpBase, 'output-models.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'models-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan,
+  });
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'models.json')));
+  const models = JSON.parse(
+    await readFile(path.join(outputPath, 'runtime', 'files', 'models.json'), 'utf8'),
+  );
+  assert.equal(models.models[0].apiKey, undefined);
+  assert.equal(models.models[0].maxTokens, 4096);
+});
+
+test('writePackageDirectory preserves runtime warnings even when no runtime files are copied', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-runtime-warnings'));
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const outputPath = path.join(tmpBase, 'output-runtime-warnings.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'runtime-warnings-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan: {
+      mode: 'default',
+      agentDir: '/tmp/runtime-agent',
+      includedFiles: [],
+      excludedFiles: [],
+      warnings: ['models.json contained only secrets — skipped entirely.'],
+      sanitizedModels: undefined,
+      settingsAnalysis: undefined,
+    },
+  });
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
+
+  const runtimeManifest = JSON.parse(
+    await readFile(path.join(outputPath, 'runtime', 'manifest.json'), 'utf8'),
+  );
+  assert.deepEqual(runtimeManifest.warnings, ['models.json contained only secrets — skipped entirely.']);
+
+  const checksums = JSON.parse(
+    await readFile(path.join(outputPath, 'meta', 'checksums.json'), 'utf8'),
+  );
+  assert.equal(typeof checksums['runtime/manifest.json'], 'string');
+  assert.equal(typeof checksums['runtime/checksums.json'], 'string');
+  assert.equal(typeof checksums['runtime/path-rewrites.json'], 'string');
+});
+
+test('manifest.includes.runtimeMode reflects runtime mode', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-manifest'));
+  const agentDir = path.join(tmpBase, 'agentdir-manifest');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+
+  const outputPath = path.join(tmpBase, 'output-manifest.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'manifest-runtime-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan,
+  });
+
+  const manifest = JSON.parse(
+    await readFile(path.join(outputPath, 'manifest.json'), 'utf8'),
+  );
+  assert.equal(manifest.includes.runtimeMode, 'default');
+});
+
+test('readPackageDirectory reads runtime subtree when present', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-read'));
+  const agentDir = path.join(tmpBase, 'agentdir-read');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{"theme":"light"}', 'utf8');
+
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+
+  const outputPath = path.join(tmpBase, 'output-read.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'read-runtime-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+    runtimeScan,
+  });
+
+  const pkg = await readPackageDirectory(outputPath);
+  assert.ok(pkg.runtimeManifest);
+  assert.equal(pkg.runtimeManifest!.mode, 'default');
+  assert.ok(pkg.runtimeManifest!.includedFiles.includes('settings.json'));
+});
+
+test('readPackageDirectory tolerates packages without runtime subtree', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-noread'));
+  const scan = await scanWorkspace(wsPath);
+  const skills = await detectSkills(scan);
+  const agent = await extractAgentDefinition(wsPath);
+
+  const outputPath = path.join(tmpBase, 'output-noread.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+  await writePackageDirectory({
+    outputPath,
+    packageName: 'no-runtime-read-test',
+    scan,
+    skills,
+    agentDefinition: agent,
+  });
+
+  const pkg = await readPackageDirectory(outputPath);
+  assert.equal(pkg.runtimeManifest, undefined);
+});

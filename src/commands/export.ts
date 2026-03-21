@@ -1,9 +1,12 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { detectOpenClawVersion } from '../core/openclaw-config';
+import { detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
 import { writePackageArchive, writePackageDirectory } from '../core/package-write';
+import { normalizeRuntimeMode } from '../core/runtime-mode';
+import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
+import type { RuntimeScanResult } from '../core/types';
 import { scanWorkspace } from '../core/workspace-scan';
 
 interface ExportOptions {
@@ -14,6 +17,7 @@ interface ExportOptions {
   agentId?: string;
   archive?: boolean;
   json?: boolean;
+  runtimeMode?: string;
 }
 
 export async function runExport(options: ExportOptions): Promise<void> {
@@ -21,6 +25,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     throw new Error('export requires --workspace <path> and --out <path>');
   }
 
+  const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const scan = await scanWorkspace(path.resolve(options.workspace));
   const skills = await detectSkills(scan);
   const agentDefinition = await extractAgentDefinition(scan.workspacePath, {
@@ -34,6 +39,28 @@ export async function runExport(options: ExportOptions): Promise<void> {
   const packageName =
     options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
 
+  let runtimeScan: RuntimeScanResult | undefined;
+  if (runtimeMode && runtimeMode !== 'none') {
+    const agentDir = await resolveAgentDir({
+      configPath: options.config,
+      workspacePath: scan.workspacePath,
+      agentId: options.agentId,
+    });
+
+    if (!agentDir) {
+      throw new Error(
+        'Cannot export runtime layer: agentDir could not be resolved from OpenClaw config. ' +
+        'Ensure the agent entry includes an agentDir field, or use --runtime-mode none.',
+      );
+    }
+
+    runtimeScan = await scanRuntime({
+      mode: runtimeMode,
+      agentDir,
+      workspacePath: scan.workspacePath,
+    });
+  }
+
   const writeParams = {
     outputPath: path.resolve(options.out),
     packageName,
@@ -41,6 +68,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     skills,
     agentDefinition,
     openclawVersion,
+    runtimeScan,
   };
 
   const result = options.archive
@@ -52,6 +80,8 @@ export async function runExport(options: ExportOptions): Promise<void> {
     packageRoot: result.packageRoot,
     manifestPath: result.manifestPath,
     fileCount: result.fileCount,
+    runtimeMode: runtimeScan?.mode,
+    runtimeFiles: runtimeScan?.includedFiles.map(f => f.relativePath),
   };
 
   if (options.json) {
@@ -59,14 +89,17 @@ export async function runExport(options: ExportOptions): Promise<void> {
     return;
   }
 
-  console.log(
-    [
-      'Export complete',
-      `  Package: ${report.packageRoot}`,
-      `  Manifest: ${report.manifestPath}`,
-      `  Files: ${report.fileCount}`,
-    ].join('\n'),
-  );
+  const lines = [
+    'Export complete',
+    `  Package: ${report.packageRoot}`,
+    `  Manifest: ${report.manifestPath}`,
+    `  Files: ${report.fileCount}`,
+  ];
+  if (runtimeScan && runtimeScan.mode !== 'none') {
+    lines.push(`  Runtime mode: ${runtimeScan.mode}`);
+    lines.push(`  Runtime files: ${runtimeScan.includedFiles.length}`);
+  }
+  console.log(lines.join('\n'));
 }
 
 export function registerExportCommand(command: Command): void {
@@ -77,6 +110,7 @@ export function registerExportCommand(command: Command): void {
     .option('--name <package-name>', 'Package name override')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
+    .option('--runtime-mode <mode>', 'Runtime mode: none, default, or full')
     .option('--archive', 'Produce a .ocpkg.tar.gz single-file archive')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runExport);

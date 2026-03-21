@@ -12,6 +12,7 @@ import type {
   ImportHints,
   PackageManifest,
   ReadPackageResult,
+  RuntimeManifest,
   SkillsManifest,
 } from './types';
 
@@ -132,6 +133,9 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(cronPath);
   }
 
+  const runtimeManifestPath = path.join(resolvedRoot, 'runtime', 'manifest.json');
+  const runtimeManifest = await readOptionalJsonFile<RuntimeManifest>(runtimeManifestPath);
+
   return {
     packageRoot: resolvedRoot,
     manifest,
@@ -143,6 +147,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     workspaceFiles,
     bindings,
     cronJobs,
+    runtimeManifest,
   };
 }
 

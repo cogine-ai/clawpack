@@ -126,6 +126,8 @@ export interface PackageManifest {
     agentDefinition: boolean;
     bindings?: boolean;
     cronJobs?: boolean;
+    runtimeMode?: RuntimeMode;
+    runtimeFiles?: string[];
   };
   excludes: {
     secrets: boolean;
@@ -148,6 +150,7 @@ export interface ExportReport {
   excludedFiles: ExcludedWorkspaceFile[];
   warnings: string[];
   skills: SkillsManifest;
+  runtime?: RuntimeManifest;
 }
 
 export interface ExportArtifacts {
@@ -182,6 +185,7 @@ export interface ReadPackageResult {
   }>;
   bindings?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
+  runtimeManifest?: RuntimeManifest;
 }
 
 export interface ImportWritePlan {
@@ -238,4 +242,52 @@ export interface ValidationReport {
   warnings: string[];
   failed: string[];
   nextSteps: string[];
+}
+
+export type RuntimeMode = 'none' | 'default' | 'full';
+
+export interface RuntimeScanResult {
+  mode: RuntimeMode;
+  agentDir: string;
+  includedFiles: Array<{ relativePath: string; absolutePath: string }>;
+  excludedFiles: ExcludedWorkspaceFile[];
+  warnings: string[];
+  sanitizedModels: Record<string, unknown> | undefined;
+  settingsAnalysis: SettingsAnalysis | undefined;
+}
+
+export interface RuntimeManifest {
+  mode: RuntimeMode;
+  agentDir: string;
+  includedFiles: string[];
+  excludedFiles: ExcludedWorkspaceFile[];
+  warnings: string[];
+  modelsSanitized: boolean;
+  modelsSkipped: boolean;
+  settingsAnalysisIncluded: boolean;
+}
+
+export type SettingsPathClassification =
+  | 'package-internal-workspace'
+  | 'package-internal-agentDir'
+  | 'relative'
+  | 'external-absolute'
+  | 'host-bound';
+
+export interface SettingsPathRef {
+  key: string;
+  value: string;
+  classification: SettingsPathClassification;
+}
+
+export interface SettingsAnalysis {
+  pathRefs: SettingsPathRef[];
+  summary: {
+    total: number;
+    packageInternalWorkspace: number;
+    packageInternalAgentDir: number;
+    relative: number;
+    externalAbsolute: number;
+    hostBound: number;
+  };
 }

@@ -7,6 +7,7 @@ import {
   extractPortableAgentDefinition,
   hasAgentInConfig,
   loadOpenClawConfig,
+  resolveAgentDir,
   resolveAgentFromConfig,
   upsertPortableAgentDefinition,
 } from '../src/core/openclaw-config';
@@ -149,6 +150,39 @@ test('resolveAgentFromConfig falls back to first list entry when no default', ()
   const result = resolveAgentFromConfig(config);
   assert.ok(result);
   assert.equal(result.resolvedId, 'only');
+});
+
+test('resolveAgentDir matches the workspace agent when agentId is omitted', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-by-workspace.json',
+    JSON.stringify({
+      agents: {
+        list: [
+          {
+            id: 'default-agent',
+            default: true,
+            workspace: '/tmp/another-workspace',
+            agentDir: 'agents/default-agent',
+          },
+          {
+            id: 'workspace-agent',
+            workspace: fixtureWorkspace,
+            agentDir: 'agents/workspace-agent',
+          },
+        ],
+      },
+    }),
+  );
+
+  const resolved = await resolveAgentDir({
+    configPath,
+    workspacePath: fixtureWorkspace,
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(configPath), 'agents/workspace-agent'),
+  );
 });
 
 // --- hasAgentInConfig ---
