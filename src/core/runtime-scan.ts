@@ -89,9 +89,12 @@ export async function scanRuntime(params: {
       warnings.push(...result.warnings);
       if (result.sanitized) {
         includedFiles.push({ relativePath: 'models.json', absolutePath: modelsPath });
+      } else {
+        excludedFiles.push({ relativePath: 'models.json', reason: 'Excluded: sanitized content was empty' });
       }
     } catch {
       warnings.push('models.json could not be parsed — skipped.');
+      excludedFiles.push({ relativePath: 'models.json', reason: 'Excluded: could not parse models.json' });
     }
   }
 

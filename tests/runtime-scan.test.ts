@@ -98,13 +98,24 @@ test('scanRuntime sanitizes models.json and includes sanitized version', async (
   assert.equal((result.sanitizedModels as any).models[0].maxTokens, 4096);
 });
 
-test('scanRuntime skips models.json when nothing useful remains after sanitization', async () => {
+test('scanRuntime skips models.json when nothing useful remains after sanitization and records exclusion', async () => {
   const agentDir = await setupAgentDir({
     'models.json': JSON.stringify({ models: [{ apiKey: 'sk-xxx' }] }),
   });
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.equal(result.sanitizedModels, undefined);
   assert.ok(result.warnings.some(w => w.includes('models.json')));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'models.json'));
+});
+
+test('scanRuntime records excluded models.json when parsing fails', async () => {
+  const agentDir = await setupAgentDir({
+    'models.json': '{ invalid json',
+  });
+  const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+  assert.equal(result.sanitizedModels, undefined);
+  assert.ok(result.warnings.some(w => /models\.json could not be parsed/i.test(w)));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'models.json' && /parse/i.test(f.reason)));
 });
 
 test('scanRuntime analyzes settings.json paths', async () => {
