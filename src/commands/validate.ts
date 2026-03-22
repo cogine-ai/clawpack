@@ -40,10 +40,10 @@ export async function runValidate(options: ValidateOptions): Promise<void> {
 
 export function registerValidateCommand(command: Command): void {
   command
-    .description('Validate an imported workspace and optional config wiring.')
+    .description('Validate an imported workspace and optional config wiring. When a runtime layer was imported, also checks runtime file integrity and agentDir consistency.')
     .requiredOption('--target-workspace <path>', 'Imported target workspace path')
     .option('--agent-id <id>', 'Expected target agent id')
-    .option('--target-agent-dir <path>', 'Expected target agentDir for runtime validation')
+    .option('--target-agent-dir <path>', 'Expected target agentDir for runtime validation. Auto-inferred from import metadata when omitted.')
     .option('--config <path>', 'Target OpenClaw config path for consistency checks')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runValidate);

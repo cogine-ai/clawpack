@@ -192,6 +192,99 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   assert.equal(report.runtimeMode, 'default');
 });
 
+test('export --runtime-mode full includes skills and extensions in runtime subtree', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-full'));
+  const agentDir = path.join(tmpBase, 'export-agentdir-full');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+  await mkdir(path.join(agentDir, 'skills', 'my-skill'), { recursive: true });
+  await writeFile(path.join(agentDir, 'skills', 'my-skill', 'SKILL.md'), '# My Skill', 'utf8');
+  await mkdir(path.join(agentDir, 'extensions', 'ext1'), { recursive: true });
+  await writeFile(path.join(agentDir, 'extensions', 'ext1', 'package.json'), '{}', 'utf8');
+
+  const configPath = path.join(tmpBase, 'export-config-full.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agent: {
+        id: 'test-agent',
+        name: 'Test',
+        workspace: wsPath,
+        agentDir: agentDir,
+      },
+    }),
+    'utf8',
+  );
+
+  const outputPath = path.join(tmpBase, 'export-output-full.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  const { stdout } = await runCli([
+    'export',
+    '--workspace', wsPath,
+    '--out', outputPath,
+    '--config', configPath,
+    '--runtime-mode', 'full',
+    '--json',
+  ]);
+
+  const report = JSON.parse(stdout);
+  assert.equal(report.status, 'ok');
+  assert.equal(report.runtimeMode, 'full');
+  assert.ok(report.runtimeFiles.some((f: string) => f.includes('skills/')));
+  assert.ok(report.runtimeFiles.some((f: string) => f.includes('extensions/')));
+
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'skills', 'my-skill', 'SKILL.md')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'extensions', 'ext1', 'package.json')));
+});
+
+test('export --runtime-mode default excludes skills and extensions', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-default-no-skills'));
+  const agentDir = path.join(tmpBase, 'export-agentdir-default-no-skills');
+  await rm(agentDir, { recursive: true, force: true });
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+  await mkdir(path.join(agentDir, 'skills', 'my-skill'), { recursive: true });
+  await writeFile(path.join(agentDir, 'skills', 'my-skill', 'SKILL.md'), '# My Skill', 'utf8');
+  await mkdir(path.join(agentDir, 'extensions', 'my-ext'), { recursive: true });
+  await writeFile(path.join(agentDir, 'extensions', 'my-ext', 'EXTENSION.md'), '# My Extension', 'utf8');
+
+  const configPath = path.join(tmpBase, 'export-config-default-no-skills.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agent: {
+        id: 'test-agent',
+        name: 'Test',
+        workspace: wsPath,
+        agentDir: agentDir,
+      },
+    }),
+    'utf8',
+  );
+
+  const outputPath = path.join(tmpBase, 'export-output-default-no-skills.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  const { stdout } = await runCli([
+    'export',
+    '--workspace', wsPath,
+    '--out', outputPath,
+    '--config', configPath,
+    '--runtime-mode', 'default',
+    '--json',
+  ]);
+
+  const report = JSON.parse(stdout);
+  assert.equal(report.runtimeMode, 'default');
+  assert.ok(!report.runtimeFiles?.some((f: string) => f.includes('skills/')));
+  assert.ok(!report.runtimeFiles?.some((f: string) => f.includes('extensions/')));
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'skills')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'extensions')), false);
+});
+
 test('export --runtime-mode default errors when agentDir unresolvable', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-block'));
   const outputPath = path.join(tmpBase, 'export-output-block.ocpkg');

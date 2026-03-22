@@ -130,7 +130,10 @@ export function registerInspectCommand(command: Command): void {
     .requiredOption('--workspace <path>', 'Source workspace path')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
-    .option('--runtime-mode <mode>', 'Runtime mode: none, default, or full')
+    .option(
+      '--runtime-mode <mode>',
+      'Runtime layer mode: none (skip), default (settings, prompts, themes, models), or full (adds skills, extensions). Defaults to "default" when omitted. Auth and session files are always excluded.',
+    )
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runInspect);
 }

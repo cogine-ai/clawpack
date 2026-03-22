@@ -11,8 +11,8 @@ const program = new Command();
 
 program
   .name('clawpacker')
-  .description('Export, import, and validate portable OpenClaw agent/workspace templates.')
-  .version('0.1.0');
+  .description('Export, import, and validate portable OpenClaw agent/workspace templates.\n\nSupports an optional runtime layer (--runtime-mode) that packages agent-level\nconfig from the OpenClaw agentDir alongside workspace files.')
+  .version('0.3.0');
 
 registerInspectCommand(program.command('inspect'));
 registerExportCommand(program.command('export'));
