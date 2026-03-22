@@ -1,15 +1,17 @@
 import path from 'node:path';
-import { readJsonFile } from '../utils/json';
 import { pathExists } from '../utils/fs';
+import { readJsonFile } from '../utils/json';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
 import { loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
 
-// TODO: In a future PR, update workspace-scan.ts to replace its inline access() checks with pathExists.
+const AUTH_FILES = ['auth.json', 'auth-profiles.json'];
+
 export async function validateImportedWorkspace(params: {
   targetWorkspacePath: string;
   agentId?: string;
   targetConfigPath?: string;
+  targetAgentDir?: string;
 }): Promise<ValidationReport> {
   const targetWorkspacePath = path.resolve(params.targetWorkspacePath);
   const report: ValidationReport = {
@@ -36,14 +38,21 @@ export async function validateImportedWorkspace(params: {
 
   const metadataDirectory = path.join(targetWorkspacePath, '.openclaw-agent-package');
   const agentRecordPath = path.join(metadataDirectory, 'agent-definition.json');
+  let metadataAgentDir: string | undefined;
   if (await pathExists(agentRecordPath)) {
-    const agentRecord = await readJsonFile<{ agentId?: string }>(agentRecordPath);
+    const agentRecord = await readJsonFile<{
+      agentId?: string;
+      targetAgentDir?: string | null;
+    }>(agentRecordPath);
     if (!params.agentId || agentRecord.agentId === params.agentId) {
       report.passed.push(`Portable agent definition record present: ${agentRecordPath}`);
     } else {
       report.failed.push(
         `Imported agent record id mismatch: expected ${params.agentId}, got ${agentRecord.agentId ?? 'unknown'}`,
       );
+    }
+    if (agentRecord.targetAgentDir) {
+      metadataAgentDir = agentRecord.targetAgentDir;
     }
   } else {
     report.failed.push(`Missing imported agent definition record: ${agentRecordPath}`);
@@ -86,6 +95,21 @@ export async function validateImportedWorkspace(params: {
     }
   }
 
+  const resolvedAgentDir = params.targetAgentDir
+    ? path.resolve(params.targetAgentDir)
+    : metadataAgentDir
+      ? path.resolve(metadataAgentDir)
+      : undefined;
+
+  if (resolvedAgentDir) {
+    await validateRuntimeLayer(report, {
+      targetAgentDir: resolvedAgentDir,
+      agentId: params.agentId,
+      targetConfigPath: params.targetConfigPath,
+      metadataDirectory,
+    });
+  }
+
   report.warnings.push('Skills are manifest-only and may require manual installation.');
   report.nextSteps.push('Channel bindings must be configured manually on the target instance.');
   report.nextSteps.push(
@@ -93,4 +117,118 @@ export async function validateImportedWorkspace(params: {
   );
 
   return report;
+}
+
+async function validateRuntimeLayer(
+  report: ValidationReport,
+  params: {
+    targetAgentDir: string;
+    agentId?: string;
+    targetConfigPath?: string;
+    metadataDirectory: string;
+  },
+): Promise<void> {
+  const { targetAgentDir } = params;
+
+  if (await pathExists(targetAgentDir)) {
+    report.passed.push(`Runtime agentDir exists: ${targetAgentDir}`);
+  } else {
+    report.failed.push(`Runtime agentDir is missing: ${targetAgentDir}`);
+    return;
+  }
+
+  if (params.targetConfigPath && params.agentId) {
+    try {
+      const { config, configPath } = await loadOpenClawConfig({
+        configPath: params.targetConfigPath,
+      });
+      const resolved = resolveAgentFromConfig(config, params.agentId);
+      if (resolved?.agent.agentDir) {
+        const configAgentDir = path.isAbsolute(resolved.agent.agentDir)
+          ? resolved.agent.agentDir
+          : path.resolve(path.dirname(configPath), resolved.agent.agentDir);
+
+        if (configAgentDir === targetAgentDir) {
+          report.passed.push(`OpenClaw config agentDir matches target: ${configAgentDir}`);
+        } else {
+          report.failed.push(
+            `OpenClaw config agentDir mismatch: expected ${targetAgentDir}, got ${configAgentDir}`,
+          );
+        }
+      } else {
+        report.failed.push(`OpenClaw config agent ${params.agentId} is missing agentDir field.`);
+      }
+    } catch {
+      report.warnings.push('Could not validate agentDir against OpenClaw config.');
+    }
+  }
+
+  for (const authFile of AUTH_FILES) {
+    const authPath = path.join(targetAgentDir, authFile);
+    if (await pathExists(authPath)) {
+      report.warnings.push(
+        `Auth file present in target agentDir — verify it is local state and not imported: ${authFile}`,
+      );
+    } else {
+      report.passed.push(`Excluded auth file correctly absent: ${authFile}`);
+    }
+  }
+
+  const agentRecordPath = path.join(params.metadataDirectory, 'agent-definition.json');
+  let expectedRuntimeFiles: string[] | undefined;
+  try {
+    const record = await readJsonFile<{
+      targetAgentDir?: string | null;
+    }>(agentRecordPath);
+
+    if (record.targetAgentDir && path.resolve(record.targetAgentDir) !== targetAgentDir) {
+      report.warnings.push(
+        `Import metadata records a different agentDir than the one being validated: ${record.targetAgentDir}`,
+      );
+    }
+  } catch {}
+
+  const importResultPath = path.join(params.metadataDirectory, 'import-result.json');
+  try {
+    const importResult = await readJsonFile<{
+      importedRuntimeFiles?: string[];
+    }>(importResultPath);
+    expectedRuntimeFiles = importResult.importedRuntimeFiles;
+  } catch {}
+
+  if (expectedRuntimeFiles && expectedRuntimeFiles.length > 0) {
+    for (const relPath of expectedRuntimeFiles) {
+      const filePath = path.join(targetAgentDir, relPath);
+      if (await pathExists(filePath)) {
+        report.passed.push(`Runtime file present: ${relPath}`);
+      } else {
+        report.failed.push(`Missing expected runtime file: ${relPath}`);
+      }
+    }
+  } else {
+    report.warnings.push(
+      'Could not determine expected runtime files from import metadata — skipping file presence checks.',
+    );
+  }
+
+  const settingsPath = path.join(targetAgentDir, 'settings.json');
+  if (await pathExists(settingsPath)) {
+    try {
+      const raw = await readJsonFile<Record<string, unknown>>(settingsPath);
+      if (typeof raw === 'object' && raw !== null) {
+        report.passed.push('Runtime settings.json is valid JSON.');
+      }
+    } catch {
+      report.failed.push('Runtime settings.json exists but is not valid JSON.');
+    }
+  }
+
+  const modelsPath = path.join(targetAgentDir, 'models.json');
+  if (expectedRuntimeFiles?.includes('models.json')) {
+    if (await pathExists(modelsPath)) {
+      report.passed.push('Sanitized models.json present (was included in package).');
+    } else {
+      report.failed.push('Expected sanitized models.json is missing.');
+    }
+  }
 }
