@@ -248,6 +248,8 @@ test('export --runtime-mode default excludes skills and extensions', async () =>
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
   await mkdir(path.join(agentDir, 'skills', 'my-skill'), { recursive: true });
   await writeFile(path.join(agentDir, 'skills', 'my-skill', 'SKILL.md'), '# My Skill', 'utf8');
+  await mkdir(path.join(agentDir, 'extensions', 'my-ext'), { recursive: true });
+  await writeFile(path.join(agentDir, 'extensions', 'my-ext', 'EXTENSION.md'), '# My Extension', 'utf8');
 
   const configPath = path.join(tmpBase, 'export-config-default-no-skills.json');
   await writeFile(
@@ -278,7 +280,9 @@ test('export --runtime-mode default excludes skills and extensions', async () =>
   const report = JSON.parse(stdout);
   assert.equal(report.runtimeMode, 'default');
   assert.ok(!report.runtimeFiles?.some((f: string) => f.includes('skills/')));
+  assert.ok(!report.runtimeFiles?.some((f: string) => f.includes('extensions/')));
   assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'skills')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'extensions')), false);
 });
 
 test('export --runtime-mode default errors when agentDir unresolvable', async () => {
