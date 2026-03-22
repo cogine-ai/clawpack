@@ -245,14 +245,14 @@ export async function runImport(packagePath: string, options: ImportOptions): Pr
 
 export function registerImportCommand(command: Command): void {
   command
-    .description('Import a portable .ocpkg directory into a target workspace.')
+    .description('Import a portable .ocpkg directory into a target workspace. If the package includes a runtime layer, runtime files are restored to the target agentDir.')
     .argument('<package-path>', 'Portable package directory path')
     .requiredOption('--target-workspace <path>', 'Target workspace path')
     .option('--agent-id <id>', 'Target agent id override')
-    .option('--target-agent-dir <path>', 'Target agentDir for runtime file import')
+    .option('--target-agent-dir <path>', 'Target agentDir for runtime file import. Required when the package includes a runtime layer and no agentDir is discoverable from config.')
     .option('--config <path>', 'Target OpenClaw config path')
-    .option('--force', 'Overwrite an existing target workspace')
-    .option('--dry-run', 'Print the import plan and exit without writing files')
+    .option('--force', 'Overwrite existing target workspace and runtime files')
+    .option('--dry-run', 'Print the import plan (including runtime details) and exit without writing files')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runImport);
 }

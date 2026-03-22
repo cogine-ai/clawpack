@@ -110,7 +110,10 @@ export function registerExportCommand(command: Command): void {
     .option('--name <package-name>', 'Package name override')
     .option('--config <path>', 'OpenClaw config path')
     .option('--agent-id <id>', 'Source agent id override')
-    .option('--runtime-mode <mode>', 'Runtime mode: none, default, or full')
+    .option(
+      '--runtime-mode <mode>',
+      'Runtime layer mode: none (skip), default (settings, prompts, themes, models), or full (adds skills, extensions). Requires a resolvable agentDir in OpenClaw config. Auth and session files are always excluded.',
+    )
     .option('--archive', 'Produce a .ocpkg.tar.gz single-file archive')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runExport);

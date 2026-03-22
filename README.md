@@ -78,6 +78,77 @@ Skills are **manifest-only** right now.
 
 That means Clawpacker records detected skill references (using backtick-quoted references like `` `skill-name` ``), but it does not bundle or install skill implementations for you.
 
+### Runtime layer (optional)
+
+In addition to workspace files, OpenClaw agents often have runtime configuration stored in a separate **agentDir** — things like `settings.json`, prompt templates, themes, and model definitions. Clawpacker can optionally package a portable slice of this runtime layer alongside the workspace.
+
+This is an **optional portability convenience**, not a full backup of the agent runtime directory.
+
+#### The three modes
+
+| Mode | What gets packaged | When to use |
+|------|-------------------|-------------|
+| `none` | Nothing from agentDir | You only need workspace files |
+| `default` | `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, `models.json` | Most agent transfers (recommended) |
+| `full` | Everything in `default`, plus `skills/**` and `extensions/**` | When the target instance needs locally installed skills or extensions |
+
+Use `--runtime-mode <mode>` on `inspect` and `export`. When omitted, `inspect` defaults to `default`; `export` skips the runtime layer unless the flag is explicitly provided.
+
+#### What is always excluded
+
+Regardless of mode, Clawpacker never packages these from agentDir:
+
+- `auth.json`, `auth-profiles.json` — authentication state
+- `sessions/**` — session data
+- `.git/**`, `node_modules/**`, `npm/**`, `bin/**` — toolchain artifacts
+- `tools/**`, `caches/**`, `logs/**` — ephemeral runtime state
+- Files with extensions `.log`, `.lock`, `.tmp`, `.bak`, `.swp`, `.pid`
+
+These exclusions exist because auth and session state is inherently non-portable and should be established fresh on the target instance.
+
+#### models.json sanitization
+
+When `models.json` is included, Clawpacker **sanitizes** it before packaging:
+
+- API keys, secrets, and `$secretRef` objects are stripped
+- Secret-bearing HTTP headers are removed
+- Non-sensitive fields (model id, provider, max tokens, temperature) are preserved
+
+If sanitization removes everything useful, the file is excluded entirely and a warning is emitted.
+
+#### settings.json path analysis
+
+Clawpacker analyzes path-like values in `settings.json` and classifies them:
+
+| Classification | Meaning | On import |
+|---------------|---------|-----------|
+| `package-internal-workspace` | Points inside the source workspace | Rewritten to target workspace path |
+| `package-internal-agentDir` | Points inside the source agentDir | Rewritten to target agentDir path |
+| `relative` | Relative path (e.g. `./data`) | Preserved as-is |
+| `external-absolute` | Absolute path outside workspace/agentDir | Preserved (may need manual update) |
+| `host-bound` | Platform-specific path (e.g. `C:\...`, `/proc/...`) | Preserved (warning emitted) |
+
+#### Runtime import behavior
+
+When importing a package that includes a runtime layer:
+
+- **`--target-agent-dir`** specifies where runtime files should be written. If omitted, Clawpacker attempts to resolve it from the target OpenClaw config.
+- If no target agentDir can be resolved, import **blocks** and tells you what is needed.
+- If runtime files already exist at the target agentDir, import **blocks** unless `--force` is passed. Only allowlisted runtime files are overwritten — auth and session files are never written.
+- If a target OpenClaw config is provided, the agent entry is upserted with the agentDir path.
+- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths.
+
+Use `--dry-run` to preview the full import plan (including runtime file list, path rewrites, and collision detection) before committing.
+
+#### agentDir resolution
+
+The agentDir is resolved from the OpenClaw config by matching the agent entry that owns the source workspace. This requires:
+
+1. A readable OpenClaw config (via `--config`, `OPENCLAW_CONFIG_PATH`, or `~/.openclaw/openclaw.json`)
+2. An agent entry with an `agentDir` field
+
+If the config is missing or the agent entry has no `agentDir`, the runtime layer is skipped on inspect, and export errors out with a clear message.
+
 ## Install
 
 ### Published package
@@ -136,12 +207,22 @@ node dist/cli.js inspect \
   --workspace ./tests/fixtures/source-workspace
 ```
 
+With runtime layer inspection:
+
+```bash
+node dist/cli.js inspect \
+  --workspace ./tests/fixtures/source-workspace \
+  --config ./tests/fixtures/openclaw-config/source-config.jsonc \
+  --runtime-mode default
+```
+
 Machine-readable JSON report:
 
 ```bash
 node dist/cli.js inspect \
   --workspace ./tests/fixtures/source-workspace \
   --config ./tests/fixtures/openclaw-config/source-config.jsonc \
+  --runtime-mode default \
   --json
 ```
 
@@ -152,18 +233,30 @@ What `inspect` tells you:
 - whether a portable agent definition could be derived
 - which fields are portable vs import-time inputs
 - which skills were detected
+- runtime layer contents (when `--runtime-mode` is `default` or `full`)
 - warnings you should expect on export/import
 
 ### 2) Export a package
 
-Directory package:
+Directory package (workspace only):
+
+```bash
+node dist/cli.js export \
+  --workspace ./tests/fixtures/source-workspace \
+  --out ./tests/tmp/example-supercoder.ocpkg \
+  --name supercoder-template \
+  --runtime-mode none
+```
+
+Directory package with runtime layer:
 
 ```bash
 node dist/cli.js export \
   --workspace ./tests/fixtures/source-workspace \
   --config ./tests/fixtures/openclaw-config/source-config.jsonc \
   --out ./tests/tmp/example-supercoder.ocpkg \
-  --name supercoder-template
+  --name supercoder-template \
+  --runtime-mode default
 ```
 
 Single-file archive:
@@ -174,6 +267,7 @@ node dist/cli.js export \
   --config ./tests/fixtures/openclaw-config/source-config.jsonc \
   --out ./tests/tmp/example-supercoder.ocpkg \
   --name supercoder-template \
+  --runtime-mode default \
   --archive
 ```
 
@@ -186,7 +280,9 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
   "status": "ok",
   "packageRoot": ".../example-supercoder.ocpkg",
   "manifestPath": ".../example-supercoder.ocpkg/manifest.json",
-  "fileCount": 12
+  "fileCount": 12,
+  "runtimeMode": "default",
+  "runtimeFiles": ["AGENTS.md", "settings.json", "prompts/system.md"]
 }
 ```
 
@@ -199,6 +295,17 @@ node dist/cli.js import \
   ./tests/tmp/example-supercoder.ocpkg \
   --target-workspace ./tests/tmp/workspace-supercoder-imported \
   --agent-id supercoder-imported \
+  --config ./tests/tmp/target-openclaw-config.json
+```
+
+Import with runtime layer targeting a specific agentDir:
+
+```bash
+node dist/cli.js import \
+  ./tests/tmp/example-supercoder.ocpkg \
+  --target-workspace ./tests/tmp/workspace-supercoder-imported \
+  --agent-id supercoder-imported \
+  --target-agent-dir ~/.openclaw/agents/supercoder-imported \
   --config ./tests/tmp/target-openclaw-config.json
 ```
 
@@ -216,9 +323,11 @@ Notes:
 
 - `--target-workspace` is required
 - `--agent-id` is strongly recommended and becomes required in practice for collision-safe import planning
-- `--dry-run` prints the import plan and exits without writing files
+- `--target-agent-dir` is required when the package includes a runtime layer and no agentDir is discoverable from the target config
+- `--dry-run` prints the import plan (including runtime details, path rewrites, and collision info) and exits without writing files
 - if the target workspace or target agent already exists, import blocks unless you pass `--force`
-- if no config is found, import can still restore workspace files, but config registration becomes limited
+- if runtime files already exist at the target agentDir, import blocks unless `--force` is passed; auth and session files are never written even with `--force`
+- if no config is found, import can still restore workspace files, but config registration and runtime import become limited
 
 ### 4) Validate the imported result
 
@@ -229,12 +338,24 @@ node dist/cli.js validate \
   --config ./tests/tmp/target-openclaw-config.json
 ```
 
+When a runtime layer was imported, validate also checks runtime file integrity:
+
+```bash
+node dist/cli.js validate \
+  --target-workspace ./tests/tmp/workspace-supercoder-imported \
+  --agent-id supercoder-imported \
+  --target-agent-dir ~/.openclaw/agents/supercoder-imported \
+  --config ./tests/tmp/target-openclaw-config.json
+```
+
+The `--target-agent-dir` flag can be omitted — validate auto-infers it from import metadata when available.
+
 Output defaults to human-readable text. Add `--json` for a structured report with:
 
-- `passed`
-- `warnings`
-- `failed`
-- `nextSteps`
+- `passed` — checks that succeeded (including runtime file presence and agentDir consistency)
+- `warnings` — non-blocking observations (e.g. auth files found at agentDir)
+- `failed` — checks that failed (e.g. missing runtime files, agentDir mismatch)
+- `nextSteps` — recommended actions
 
 ## OpenClaw config awareness
 
@@ -283,13 +404,19 @@ Clawpacker is designed to be conservative.
 - daily memory logs (`memory/*.md`) are excluded by default
 - package contents are declared in a manifest instead of hidden in opaque state
 - checksums are generated for integrity verification
+- runtime layer is opt-in via `--runtime-mode`
+- `models.json` is sanitized before packaging — API keys, secrets, and `$secretRef` objects are removed
+- auth and session files are never included in the runtime layer regardless of mode
 
 ### Import safety
 
 - import is planned before it executes
 - existing workspace collisions block by default
 - existing config agent collisions block by default
-- `--force` is required to overwrite existing targets
+- existing runtime file collisions block by default
+- `--force` is required to overwrite existing targets (workspace and runtime files)
+- `--force` never writes auth or session files — these are always excluded
+- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths
 - import writes local metadata so validation can confirm what happened later
 
 ### Post-import safety expectations
@@ -326,19 +453,36 @@ supercoder-template.ocpkg/
   meta/
     checksums.json
     export-report.json
+  runtime/                  # present when --runtime-mode is default or full
+    manifest.json
+    checksums.json
+    path-rewrites.json
+    settings-analysis.json  # present when settings.json was included
+    files/
+      AGENTS.md
+      settings.json
+      models.json           # sanitized — no API keys or secrets
+      prompts/
+        system.md
+      themes/
+        dark.json
+      skills/               # present only in full mode
+        my-skill/
+          SKILL.md
 ```
 
 The `workspace/` directory mirrors the source workspace structure. All non-excluded files are included, so the contents vary depending on what lives in the source workspace.
+
+The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, and which files were included or excluded. The `files/` subdirectory contains the actual runtime files.
 
 Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
 ## What is intentionally out of scope
 
-- full OpenClaw instance backup
-- secret migration
-- auth/session migration
+- full OpenClaw instance backup (the runtime layer is a portable slice, not a full agentDir copy)
+- secret migration (API keys and auth tokens are stripped on export)
+- auth/session migration (auth files are always excluded)
 - channel binding export/import
-- packaging globally installed skill implementations
 - zero-touch import across mismatched environments
 
 ## Roadmap / known limitations
@@ -346,15 +490,15 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 Near-term likely improvements:
 
 - richer import guidance when models or skills are missing
-- optional packaging for workspace-local skill folders
 - better package compatibility/version negotiation
 
 Current limitations to be aware of:
 
 - package format should still be treated as early-stage (currently v2)
-- skills are detected, but not bundled
+- skills are detected and optionally bundled via `--runtime-mode full`, but not auto-installed on import
 - import assumes conservative file-level replacement semantics via `--force`
 - OpenClaw config support is minimal by design
+- runtime layer path rewriting only handles `settings.json` — other config files with embedded paths require manual update
 
 ## Development
 
@@ -389,7 +533,7 @@ A practical smoke path is:
 ```bash
 npm run build
 node dist/cli.js inspect --workspace ./tests/fixtures/source-workspace --json
-node dist/cli.js export --workspace ./tests/fixtures/source-workspace --out ./tests/tmp/readme-demo.ocpkg
+node dist/cli.js export --workspace ./tests/fixtures/source-workspace --out ./tests/tmp/readme-demo.ocpkg --runtime-mode none
 node dist/cli.js import ./tests/tmp/readme-demo.ocpkg --target-workspace ./tests/tmp/readme-demo-target --agent-id readme-demo
 node dist/cli.js validate --target-workspace ./tests/tmp/readme-demo-target --agent-id readme-demo
 npm test

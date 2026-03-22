@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Runtime layer support: `--runtime-mode` flag on `inspect` and `export` commands with three modes — `none`, `default`, and `full` (#38)
+- `default` mode packages `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, and `models.json` from the agent's agentDir (#38)
+- `full` mode additionally packages `skills/**` and `extensions/**` (#38)
+- `models.json` sanitization: API keys, secrets, `$secretRef` objects, and secret-bearing headers are stripped before packaging (#38)
+- `settings.json` path analysis: path-like values are classified as workspace-internal, agentDir-internal, relative, external-absolute, or host-bound (#38)
+- Runtime scan with safety exclusions: auth files, session data, toolchain artifacts, and temp/log files are always excluded (#38)
+- Symlink safety: symlinked files and directories inside agentDir are skipped during runtime scan (#38)
+- Runtime subtree in package format: `runtime/manifest.json`, `runtime/checksums.json`, `runtime/files/`, `runtime/path-rewrites.json`, `runtime/settings-analysis.json` (#38)
+- Runtime import support: `--target-agent-dir` flag on `import` to specify where runtime files are restored (#39)
+- Runtime collision detection: import blocks when runtime files already exist at the target agentDir unless `--force` is passed (#39)
+- Runtime path rewriting: `settings.json` paths referencing source workspace/agentDir are rewritten to target paths on import (#39)
+- Config upsert with agentDir: imported agent entry includes the target agentDir in OpenClaw config (#39)
+- Runtime validation: `validate` checks runtime file presence, agentDir consistency, auth file exclusion, and `settings.json` validity (#39)
+- Auto-inference of `--target-agent-dir` from import metadata during validation (#39)
+- Dry-run support for runtime import plans including runtime file list, collision info, and path rewrites (#39)
+
+### Changed
+
+- CLI help text updated to describe runtime modes, safety boundaries, and default behavior (#40)
+- CLI version aligned with package version (#40)
+- README updated with runtime layer documentation: mode descriptions, exclusion rules, path rewriting, import behavior, and package structure (#40)
+
 ## [0.2.0] - 2026-03-19
 
 ### Added
@@ -61,3 +85,4 @@ Initial alpha release of clawpacker — a portability CLI for OpenClaw agents an
 [Unreleased]: https://github.com/cogine-ai/clawpack/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/cogine-ai/clawpack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cogine-ai/clawpack/releases/tag/v0.1.0
+
