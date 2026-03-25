@@ -21,6 +21,7 @@ export async function executeImport(params: {
   }
 
   const importedRuntimeFiles = await executeRuntimeImport(params);
+  const expectedChecksums = collectExpectedChecksums(params);
 
   await mkdir(params.plan.writePlan.metadataDirectory, { recursive: true });
   const agentRecordPath = path.join(
@@ -63,10 +64,36 @@ export async function executeImport(params: {
     targetWorkspacePath: params.plan.writePlan.targetWorkspacePath,
     targetAgentDir,
     agentId: params.plan.writePlan.targetAgentId,
+    expectedChecksums,
   };
 
   await writeJsonFile(importRecordPath, result);
   return result;
+}
+
+function collectExpectedChecksums(params: {
+  pkg: ReadPackageResult;
+  plan: ExecutableImportPlan;
+}): Record<string, string> {
+  const expectedChecksums: Record<string, string> = {};
+
+  for (const file of params.plan.writePlan.workspaceFiles) {
+    const key = `workspace/${file.relativePath}`;
+    const checksum = params.pkg.checksums[key];
+    if (checksum) {
+      expectedChecksums[key] = checksum;
+    }
+  }
+
+  for (const file of params.plan.writePlan.runtimePlan?.files ?? []) {
+    const key = `runtime/files/${file.relativePath}`;
+    const checksum = params.pkg.checksums[key];
+    if (checksum) {
+      expectedChecksums[key] = checksum;
+    }
+  }
+
+  return expectedChecksums;
 }
 
 async function executeRuntimeImport(params: {

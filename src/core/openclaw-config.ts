@@ -269,10 +269,35 @@ export async function upsertPortableAgentDefinition(params: {
     workspace: params.targetWorkspacePath,
     ...(params.targetAgentDir ? { agentDir: params.targetAgentDir } : {}),
     identity: {
+      ...params.portableAgentDefinition.agent.identity,
       name: params.portableAgentDefinition.agent.identity.name,
     },
-    ...(params.portableAgentDefinition.agent.model?.default
-      ? { model: { default: params.portableAgentDefinition.agent.model.default } }
+    ...(params.portableAgentDefinition.agent.model
+      ? { model: { ...params.portableAgentDefinition.agent.model } }
+      : {}),
+    ...(params.portableAgentDefinition.agent.tools
+      ? { tools: params.portableAgentDefinition.agent.tools }
+      : {}),
+    ...(params.portableAgentDefinition.agent.skills
+      ? { skills: params.portableAgentDefinition.agent.skills }
+      : {}),
+    ...(params.portableAgentDefinition.agent.heartbeat
+      ? { heartbeat: params.portableAgentDefinition.agent.heartbeat }
+      : {}),
+    ...(params.portableAgentDefinition.agent.sandbox
+      ? { sandbox: params.portableAgentDefinition.agent.sandbox }
+      : {}),
+    ...(params.portableAgentDefinition.agent.runtime
+      ? { runtime: params.portableAgentDefinition.agent.runtime }
+      : {}),
+    ...(params.portableAgentDefinition.agent.params
+      ? { params: params.portableAgentDefinition.agent.params }
+      : {}),
+    ...(params.portableAgentDefinition.agent.humanDelay
+      ? { humanDelay: params.portableAgentDefinition.agent.humanDelay }
+      : {}),
+    ...(params.portableAgentDefinition.agent.memorySearch
+      ? { memorySearch: params.portableAgentDefinition.agent.memorySearch }
       : {}),
   };
 

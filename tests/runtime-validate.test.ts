@@ -83,6 +83,25 @@ test('Validate detects missing runtime files', async () => {
   assert.ok(report.failed.some((f) => f.includes('Missing expected runtime file: settings.json')));
 });
 
+test('Validate detects runtime checksum mismatch', async () => {
+  const dir = 'checksum-mismatch';
+  await cleanup(dir);
+  const { targetWorkspace, targetAgentDir, configPath } = await importWithRuntime(dir);
+
+  await writeFile(path.join(targetAgentDir, 'settings.json'), '{"changed":true}\n', 'utf8');
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'rt-val',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  });
+
+  assert.ok(
+    report.failed.some((f) => f.includes('Checksum mismatch') && f.includes('runtime/files/settings.json')),
+  );
+});
+
 test('Validate detects agentDir mismatch in config', async () => {
   const dir = 'dir-mismatch';
   await cleanup(dir);

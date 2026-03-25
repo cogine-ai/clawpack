@@ -77,6 +77,7 @@ test('import-result.json is created with correct fields', async () => {
   assert.ok(Array.isArray(stored.metadataFiles));
   assert.ok(Array.isArray(stored.warnings));
   assert.ok(Array.isArray(stored.nextSteps));
+  assert.equal(typeof stored.expectedChecksums['workspace/AGENTS.md'], 'string');
   assert.equal(stored.targetWorkspacePath, targetWorkspace);
   assert.equal(stored.agentId, 'result-agent');
 });

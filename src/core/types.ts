@@ -261,6 +261,7 @@ export interface ImportResult {
   targetWorkspacePath: string;
   targetAgentDir?: string;
   agentId: string;
+  expectedChecksums: Record<string, string>;
 }
 
 export interface ValidationReport {

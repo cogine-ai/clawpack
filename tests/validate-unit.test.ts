@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
+import { executeImport } from '../src/core/import-exec';
+import { planImport } from '../src/core/import-plan';
 import { validateImportedWorkspace } from '../src/core/validate';
+import type { ExecutableImportPlan } from '../src/core/types';
 import {
   createTempWorkspace,
   cleanupTempWorkspace,
 } from './helpers/workspace-factory';
+import { buildTestPackage } from './helpers/package-factory';
 
 const tmpBase = path.resolve('tests/tmp/validate-unit');
+const fixtureWorkspace = path.resolve('tests/fixtures/source-workspace');
 
 test('Workspace does not exist - failed contains "Workspace is missing", returns immediately', async () => {
   const nonExistent = path.join(tmpBase, 'nonexistent');
@@ -202,4 +207,36 @@ test('Config has workspace path mismatch - failed contains "workspace mismatch"'
     await cleanupTempWorkspace(workspace);
     await cleanupTempWorkspace(configDir);
   }
+});
+
+test('Validate reports workspace checksum mismatch when imported file content changes', async () => {
+  const dir = path.join(tmpBase, 'workspace-checksum-mismatch');
+  const pkgRoot = path.join(dir, 'fixture.ocpkg');
+  const targetWorkspace = path.join(dir, 'target');
+
+  await rm(dir, { recursive: true, force: true });
+
+  const pkg = await buildTestPackage(fixtureWorkspace, pkgRoot, {
+    packageName: 'checksum-test-pkg',
+    agentId: 'checksum-agent',
+  });
+
+  const plan = (await planImport({
+    pkg,
+    targetWorkspacePath: targetWorkspace,
+    targetAgentId: 'checksum-agent',
+  })) as ExecutableImportPlan;
+
+  await executeImport({ pkg, plan });
+  const original = await readFile(path.join(targetWorkspace, 'AGENTS.md'), 'utf8');
+  await writeFile(path.join(targetWorkspace, 'AGENTS.md'), `${original}\nmodified\n`, 'utf8');
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'checksum-agent',
+  });
+
+  assert.ok(
+    report.failed.some((f) => f.includes('Checksum mismatch') && f.includes('workspace/AGENTS.md')),
+  );
 });
