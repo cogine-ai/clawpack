@@ -391,6 +391,9 @@ test('upsertPortableAgentDefinition creates new config with agents.list format',
   assert.deepEqual(entry.sandbox, portableFixture.agent.sandbox);
   assert.deepEqual(entry.runtime, portableFixture.agent.runtime);
   assert.deepEqual(entry.params, portableFixture.agent.params);
+  assert.deepEqual(entry.heartbeat, portableFixture.agent.heartbeat);
+  assert.deepEqual(entry.humanDelay, portableFixture.agent.humanDelay);
+  assert.deepEqual(entry.memorySearch, portableFixture.agent.memorySearch);
   assert.equal(entry.channelBindings, undefined);
 });
 

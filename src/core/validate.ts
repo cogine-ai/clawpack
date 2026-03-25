@@ -69,7 +69,9 @@ export async function validateImportedWorkspace(params: {
 
   try {
     importResultRecord = await readJsonFile<ImportResultMetadata>(importResultPath);
-  } catch {}
+  } catch {
+    // Best-effort: older or partial imports may not have valid import-result metadata.
+  }
 
   await validateExpectedChecksums(report, {
     rootPath: targetWorkspacePath,
