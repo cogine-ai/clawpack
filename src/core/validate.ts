@@ -77,6 +77,7 @@ export async function validateImportedWorkspace(params: {
     rootPath: targetWorkspacePath,
     expectedChecksums: importResultRecord?.expectedChecksums,
     keyPrefix: 'workspace/',
+    failOnMissingFiles: true,
   });
 
   if (params.targetConfigPath) {
@@ -232,6 +233,7 @@ async function validateRuntimeLayer(
     rootPath: targetAgentDir,
     expectedChecksums: params.importResultRecord?.expectedChecksums,
     keyPrefix: 'runtime/files/',
+    failOnMissingFiles: false,
   });
 
   const settingsPath = path.join(targetAgentDir, 'settings.json');
@@ -262,6 +264,7 @@ async function validateExpectedChecksums(
     rootPath: string;
     expectedChecksums?: Record<string, string>;
     keyPrefix: 'workspace/' | 'runtime/files/';
+    failOnMissingFiles: boolean;
   },
 ): Promise<void> {
   const entries = Object.entries(params.expectedChecksums ?? {}).filter(([key]) =>
@@ -279,6 +282,9 @@ async function validateExpectedChecksums(
     const relativePath = key.slice(params.keyPrefix.length);
     const filePath = path.join(params.rootPath, relativePath);
     if (!(await pathExists(filePath))) {
+      if (params.failOnMissingFiles) {
+        report.failed.push(`Missing imported file: ${key}`);
+      }
       continue;
     }
 

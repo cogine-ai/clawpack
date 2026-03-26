@@ -240,3 +240,35 @@ test('Validate reports workspace checksum mismatch when imported file content ch
     report.failed.some((f) => f.includes('Checksum mismatch') && f.includes('workspace/AGENTS.md')),
   );
 });
+
+test('Validate reports missing imported workspace files as failures', async () => {
+  const dir = path.join(tmpBase, 'workspace-missing-imported-file');
+  const pkgRoot = path.join(dir, 'fixture.ocpkg');
+  const targetWorkspace = path.join(dir, 'target');
+
+  await rm(dir, { recursive: true, force: true });
+
+  const pkg = await buildTestPackage(fixtureWorkspace, pkgRoot, {
+    packageName: 'missing-file-test-pkg',
+    agentId: 'missing-file-agent',
+  });
+
+  const plan = (await planImport({
+    pkg,
+    targetWorkspacePath: targetWorkspace,
+    targetAgentId: 'missing-file-agent',
+  })) as ExecutableImportPlan;
+
+  await executeImport({ pkg, plan });
+  await rm(path.join(targetWorkspace, 'notes.txt'), { force: true });
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'missing-file-agent',
+  });
+
+  assert.ok(
+    report.failed.some((f) => f.includes('workspace/notes.txt')),
+    `Expected missing imported file failure, got: ${report.failed.join(', ')}`,
+  );
+});

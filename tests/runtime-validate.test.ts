@@ -102,6 +102,77 @@ test('Validate detects runtime checksum mismatch', async () => {
   );
 });
 
+test('Validate accepts rewritten settings.json after a clean import', async () => {
+  const dir = 'checksum-rewrite-clean-import';
+  await cleanup(dir);
+
+  const pkgRoot = path.join(tmpBase, dir, 'fixture.ocpkg');
+  const targetWorkspace = path.join(tmpBase, dir, 'target-ws');
+  const targetAgentDir = path.join(tmpBase, dir, 'target-agent');
+  const configPath = path.join(tmpBase, dir, 'openclaw.json');
+
+  const sourceWorkspacePath = '/source/workspace';
+  const sourceAgentDir = '/source/agent-dir';
+  const pkg = await buildRuntimeTestPackage(pkgRoot, {
+    runtimeFiles: {
+      'settings.json': JSON.stringify(
+        {
+          workspaceRoot: sourceWorkspacePath,
+          agentConfig: `${sourceAgentDir}/config`,
+        },
+        null,
+        2,
+      ),
+    },
+    sourceAgentDir,
+    sourceWorkspacePath,
+    settingsAnalysis: {
+      pathRefs: [
+        {
+          key: 'workspaceRoot',
+          value: sourceWorkspacePath,
+          classification: 'package-internal-workspace',
+        },
+        {
+          key: 'agentConfig',
+          value: `${sourceAgentDir}/config`,
+          classification: 'package-internal-agentDir',
+        },
+      ],
+      summary: {
+        total: 2,
+        packageInternalWorkspace: 1,
+        packageInternalAgentDir: 1,
+        relative: 0,
+        externalAbsolute: 0,
+        hostBound: 0,
+      },
+    },
+  });
+
+  const plan = (await planImport({
+    pkg,
+    targetWorkspacePath: targetWorkspace,
+    targetAgentId: 'rt-val',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  })) as ExecutableImportPlan;
+
+  await executeImport({ pkg, plan });
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'rt-val',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  });
+
+  assert.ok(
+    !report.failed.some((f) => f.includes('runtime/files/settings.json')),
+    `Did not expect rewritten settings.json to fail checksum validation: ${report.failed.join(', ')}`,
+  );
+});
+
 test('Validate detects agentDir mismatch in config', async () => {
   const dir = 'dir-mismatch';
   await cleanup(dir);

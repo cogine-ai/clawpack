@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonFile } from '../utils/json';
+import { checksumFile } from './checksums';
 import { upsertPortableAgentDefinition } from './openclaw-config';
 import { applyPathRewrites } from './path-rewrite';
 import type { ExecutableImportPlan, ImportResult, ReadPackageResult } from './types';
@@ -20,8 +21,8 @@ export async function executeImport(params: {
     await cp(file.sourcePath, file.targetPath);
   }
 
-  const importedRuntimeFiles = await executeRuntimeImport(params);
-  const expectedChecksums = collectExpectedChecksums(params);
+  const runtimeImport = await executeRuntimeImport(params);
+  const expectedChecksums = collectExpectedChecksums(params, runtimeImport.actualChecksums);
 
   await mkdir(params.plan.writePlan.metadataDirectory, { recursive: true });
   const agentRecordPath = path.join(
@@ -57,7 +58,7 @@ export async function executeImport(params: {
   const result: ImportResult = {
     status: 'ok',
     importedFiles: params.plan.writePlan.workspaceFiles.map((file) => file.relativePath),
-    importedRuntimeFiles,
+    importedRuntimeFiles: runtimeImport.importedFiles,
     metadataFiles: [agentRecordPath, importRecordPath, ...configFiles],
     warnings: params.plan.warnings,
     nextSteps: params.plan.nextSteps,
@@ -71,10 +72,13 @@ export async function executeImport(params: {
   return result;
 }
 
-function collectExpectedChecksums(params: {
-  pkg: ReadPackageResult;
-  plan: ExecutableImportPlan;
-}): Record<string, string> {
+function collectExpectedChecksums(
+  params: {
+    pkg: ReadPackageResult;
+    plan: ExecutableImportPlan;
+  },
+  actualRuntimeChecksums: Record<string, string>,
+): Record<string, string> {
   const expectedChecksums: Record<string, string> = {};
 
   for (const file of params.plan.writePlan.workspaceFiles) {
@@ -87,7 +91,7 @@ function collectExpectedChecksums(params: {
 
   for (const file of params.plan.writePlan.runtimePlan?.files ?? []) {
     const key = `runtime/files/${file.relativePath}`;
-    const checksum = params.pkg.checksums[key];
+    const checksum = actualRuntimeChecksums[key] ?? params.pkg.checksums[key];
     if (checksum) {
       expectedChecksums[key] = checksum;
     }
@@ -99,11 +103,14 @@ function collectExpectedChecksums(params: {
 async function executeRuntimeImport(params: {
   pkg: ReadPackageResult;
   plan: ExecutableImportPlan;
-}): Promise<string[]> {
+}): Promise<{ importedFiles: string[]; actualChecksums: Record<string, string> }> {
   const rp = params.plan.writePlan.runtimePlan;
-  if (!rp || rp.files.length === 0) return [];
+  if (!rp || rp.files.length === 0) {
+    return { importedFiles: [], actualChecksums: {} };
+  }
 
-  const imported: string[] = [];
+  const importedFiles: string[] = [];
+  const actualChecksums: Record<string, string> = {};
 
   for (const file of rp.files) {
     await mkdir(path.dirname(file.targetPath), { recursive: true });
@@ -130,8 +137,9 @@ async function executeRuntimeImport(params: {
       await cp(file.sourcePath, file.targetPath);
     }
 
-    imported.push(file.relativePath);
+    importedFiles.push(file.relativePath);
+    actualChecksums[`runtime/files/${file.relativePath}`] = await checksumFile(file.targetPath);
   }
 
-  return imported;
+  return { importedFiles, actualChecksums };
 }
