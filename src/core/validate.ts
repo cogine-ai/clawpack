@@ -1,11 +1,17 @@
 import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { readJsonFile } from '../utils/json';
+import { checksumFile } from './checksums';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
 import { loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
 import type { ValidationReport } from './types';
 
 const AUTH_FILES = ['auth.json', 'auth-profiles.json'];
+
+type ImportResultMetadata = {
+  importedRuntimeFiles?: string[];
+  expectedChecksums?: Record<string, string>;
+};
 
 export async function validateImportedWorkspace(params: {
   targetWorkspacePath: string;
@@ -38,7 +44,10 @@ export async function validateImportedWorkspace(params: {
 
   const metadataDirectory = path.join(targetWorkspacePath, '.openclaw-agent-package');
   const agentRecordPath = path.join(metadataDirectory, 'agent-definition.json');
+  const importResultPath = path.join(metadataDirectory, 'import-result.json');
   let metadataAgentDir: string | undefined;
+  let importResultRecord: ImportResultMetadata | undefined;
+
   if (await pathExists(agentRecordPath)) {
     const agentRecord = await readJsonFile<{
       agentId?: string;
@@ -57,6 +66,19 @@ export async function validateImportedWorkspace(params: {
   } else {
     report.failed.push(`Missing imported agent definition record: ${agentRecordPath}`);
   }
+
+  try {
+    importResultRecord = await readJsonFile<ImportResultMetadata>(importResultPath);
+  } catch {
+    // Best-effort: older or partial imports may not have valid import-result metadata.
+  }
+
+  await validateExpectedChecksums(report, {
+    rootPath: targetWorkspacePath,
+    expectedChecksums: importResultRecord?.expectedChecksums,
+    keyPrefix: 'workspace/',
+    failOnMissingFiles: true,
+  });
 
   if (params.targetConfigPath) {
     const { configPath, config } = await loadOpenClawConfig({
@@ -107,6 +129,7 @@ export async function validateImportedWorkspace(params: {
       agentId: params.agentId,
       targetConfigPath: params.targetConfigPath,
       metadataDirectory,
+      importResultRecord,
     });
   }
 
@@ -126,6 +149,7 @@ async function validateRuntimeLayer(
     agentId?: string;
     targetConfigPath?: string;
     metadataDirectory: string;
+    importResultRecord?: ImportResultMetadata;
   },
 ): Promise<void> {
   const { targetAgentDir } = params;
@@ -188,13 +212,13 @@ async function validateRuntimeLayer(
     }
   } catch {}
 
-  const importResultPath = path.join(params.metadataDirectory, 'import-result.json');
-  try {
-    const importResult = await readJsonFile<{
-      importedRuntimeFiles?: string[];
-    }>(importResultPath);
-    expectedRuntimeFiles = importResult.importedRuntimeFiles;
-  } catch {}
+  expectedRuntimeFiles = params.importResultRecord?.importedRuntimeFiles;
+  if (!expectedRuntimeFiles || expectedRuntimeFiles.length === 0) {
+    expectedRuntimeFiles = getExpectedFilesFromChecksums(
+      params.importResultRecord?.expectedChecksums,
+      'runtime/files/',
+    );
+  }
 
   if (expectedRuntimeFiles && expectedRuntimeFiles.length > 0) {
     for (const relPath of expectedRuntimeFiles) {
@@ -210,6 +234,13 @@ async function validateRuntimeLayer(
       'Could not determine expected runtime files from import metadata — skipping file presence checks.',
     );
   }
+
+  await validateExpectedChecksums(report, {
+    rootPath: targetAgentDir,
+    expectedChecksums: params.importResultRecord?.expectedChecksums,
+    keyPrefix: 'runtime/files/',
+    failOnMissingFiles: false,
+  });
 
   const settingsPath = path.join(targetAgentDir, 'settings.json');
   if (await pathExists(settingsPath)) {
@@ -231,4 +262,69 @@ async function validateRuntimeLayer(
       report.failed.push('Expected sanitized models.json is missing.');
     }
   }
+}
+
+async function validateExpectedChecksums(
+  report: ValidationReport,
+  params: {
+    rootPath: string;
+    expectedChecksums?: Record<string, string>;
+    keyPrefix: 'workspace/' | 'runtime/files/';
+    failOnMissingFiles: boolean;
+  },
+): Promise<void> {
+  const entries = Object.entries(params.expectedChecksums ?? {}).filter(([key]) =>
+    key.startsWith(params.keyPrefix),
+  );
+
+  if (entries.length === 0) {
+    report.warnings.push(
+      `Could not determine expected checksums for ${params.keyPrefix === 'workspace/' ? 'workspace' : 'runtime'} files — skipping checksum validation.`,
+    );
+    return;
+  }
+
+  for (const [key, expectedChecksum] of entries) {
+    const relativePath = key.slice(params.keyPrefix.length);
+    const filePath = path.join(params.rootPath, relativePath);
+    if (!(await pathExists(filePath))) {
+      if (params.failOnMissingFiles) {
+        report.failed.push(`Missing imported file: ${key}`);
+      }
+      continue;
+    }
+
+    let actualChecksum: string;
+    try {
+      actualChecksum = await checksumFile(filePath);
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        if (params.failOnMissingFiles) {
+          report.failed.push(`Missing imported file: ${key}`);
+        }
+        continue;
+      }
+      throw err;
+    }
+    if (actualChecksum === expectedChecksum) {
+      report.passed.push(`Checksum OK: ${key}`);
+    } else {
+      report.failed.push(`Checksum mismatch: ${key}`);
+    }
+  }
+}
+
+function getExpectedFilesFromChecksums(
+  expectedChecksums: Record<string, string> | undefined,
+  keyPrefix: 'workspace/' | 'runtime/files/',
+): string[] {
+  return Object.keys(expectedChecksums ?? {})
+    .filter((key) => key.startsWith(keyPrefix))
+    .map((key) => key.slice(keyPrefix.length))
+    .sort((a, b) => a.localeCompare(b));
 }

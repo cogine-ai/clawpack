@@ -341,6 +341,20 @@ const portableFixture = {
     workspace: { suggestedBasename: 'workspace-supercoder-imported' },
     identity: { name: 'Supercoder Imported' },
     model: { default: 'openai-codex/gpt-5.4' },
+    tools: {
+      profile: 'strict',
+      allow: ['Read', 'Write'],
+    },
+    skills: ['brainstorming'],
+    sandbox: {
+      mode: 'workspace-write',
+    },
+    runtime: {
+      transport: 'stdio',
+    },
+    params: {
+      temperature: 0.2,
+    },
   },
   fieldClassification: {
     'agent.suggestedId': 'requiresInputOnImport' as const,
@@ -372,6 +386,14 @@ test('upsertPortableAgentDefinition creates new config with agents.list format',
   assert.equal(entry.name, 'Supercoder Imported');
   assert.equal(entry.workspace, importWorkspace);
   assert.equal(entry.model.default, 'openai-codex/gpt-5.4');
+  assert.deepEqual(entry.tools, portableFixture.agent.tools);
+  assert.deepEqual(entry.skills, portableFixture.agent.skills);
+  assert.deepEqual(entry.sandbox, portableFixture.agent.sandbox);
+  assert.deepEqual(entry.runtime, portableFixture.agent.runtime);
+  assert.deepEqual(entry.params, portableFixture.agent.params);
+  assert.deepEqual(entry.heartbeat, portableFixture.agent.heartbeat);
+  assert.deepEqual(entry.humanDelay, portableFixture.agent.humanDelay);
+  assert.deepEqual(entry.memorySearch, portableFixture.agent.memorySearch);
   assert.equal(entry.channelBindings, undefined);
 });
 
@@ -556,6 +578,11 @@ test('export/import/validate uses fixture config and persists agent into target 
   );
   assert.ok(entry, 'imported agent should be in agents.list');
   assert.equal(entry.workspace, importWorkspace);
+  assert.deepEqual(entry.tools, agentJson.agent.tools);
+  assert.deepEqual(entry.skills, agentJson.agent.skills);
+  assert.deepEqual(entry.sandbox, agentJson.agent.sandbox);
+  assert.deepEqual(entry.runtime, agentJson.agent.runtime);
+  assert.deepEqual(entry.params, agentJson.agent.params);
 
   const { stdout } = await runCli([
     'validate',
