@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { executeImport } from '../src/core/import-exec';
@@ -81,6 +81,37 @@ test('Validate detects missing runtime files', async () => {
   });
 
   assert.ok(report.failed.some((f) => f.includes('Missing expected runtime file: settings.json')));
+});
+
+test('Validate derives expected runtime files from checksums when importedRuntimeFiles is missing', async () => {
+  const dir = 'missing-file-derived-from-checksums';
+  await cleanup(dir);
+  const { targetWorkspace, targetAgentDir, configPath } = await importWithRuntime(dir);
+
+  const importResultPath = path.join(
+    targetWorkspace,
+    '.openclaw-agent-package',
+    'import-result.json',
+  );
+  const importResult = JSON.parse(await readFile(importResultPath, 'utf8')) as {
+    importedRuntimeFiles?: string[];
+  };
+  delete importResult.importedRuntimeFiles;
+  await writeFile(importResultPath, `${JSON.stringify(importResult, null, 2)}\n`, 'utf8');
+
+  await rm(path.join(targetAgentDir, 'settings.json'), { force: true });
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'rt-val',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  });
+
+  assert.ok(
+    report.failed.some((f) => f.includes('Missing expected runtime file: settings.json')),
+    `Expected runtime presence failure derived from checksums, got: ${report.failed.join(', ')}`,
+  );
 });
 
 test('Validate detects runtime checksum mismatch', async () => {

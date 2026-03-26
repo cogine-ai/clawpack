@@ -213,6 +213,12 @@ async function validateRuntimeLayer(
   } catch {}
 
   expectedRuntimeFiles = params.importResultRecord?.importedRuntimeFiles;
+  if (!expectedRuntimeFiles || expectedRuntimeFiles.length === 0) {
+    expectedRuntimeFiles = getExpectedFilesFromChecksums(
+      params.importResultRecord?.expectedChecksums,
+      'runtime/files/',
+    );
+  }
 
   if (expectedRuntimeFiles && expectedRuntimeFiles.length > 0) {
     for (const relPath of expectedRuntimeFiles) {
@@ -288,11 +294,37 @@ async function validateExpectedChecksums(
       continue;
     }
 
-    const actualChecksum = await checksumFile(filePath);
+    let actualChecksum: string;
+    try {
+      actualChecksum = await checksumFile(filePath);
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        if (params.failOnMissingFiles) {
+          report.failed.push(`Missing imported file: ${key}`);
+        }
+        continue;
+      }
+      throw err;
+    }
     if (actualChecksum === expectedChecksum) {
       report.passed.push(`Checksum OK: ${key}`);
     } else {
       report.failed.push(`Checksum mismatch: ${key}`);
     }
   }
+}
+
+function getExpectedFilesFromChecksums(
+  expectedChecksums: Record<string, string> | undefined,
+  keyPrefix: 'workspace/' | 'runtime/files/',
+): string[] {
+  return Object.keys(expectedChecksums ?? {})
+    .filter((key) => key.startsWith(keyPrefix))
+    .map((key) => key.slice(keyPrefix.length))
+    .sort((a, b) => a.localeCompare(b));
 }
