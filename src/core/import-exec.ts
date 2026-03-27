@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonFile } from '../utils/json';
 import { checksumFile } from './checksums';
@@ -10,10 +10,6 @@ export async function executeImport(params: {
   pkg: ReadPackageResult;
   plan: ExecutableImportPlan;
 }): Promise<ImportResult> {
-  if (params.plan.writePlan.overwriteExisting) {
-    await rm(params.plan.writePlan.targetWorkspacePath, { recursive: true, force: true });
-  }
-
   await mkdir(params.plan.writePlan.targetWorkspacePath, { recursive: true });
 
   for (const file of params.plan.writePlan.workspaceFiles) {

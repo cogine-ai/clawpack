@@ -107,13 +107,13 @@ test('agent-definition.json contains correct agentId and importedFromPackage', a
   assert.ok(agentDef.portableAgentDefinition);
 });
 
-test('overwriteExisting: true removes existing workspace first', async () => {
+test('overwriteExisting: true replaces package files in-place and preserves unrelated files', async () => {
   const pkgRoot = path.join(tmpBase, 'overwrite', 'fixture.ocpkg');
   const targetWorkspace = path.join(tmpBase, 'overwrite', 'target');
 
   await createTempWorkspace(targetWorkspace, {
     files: { 'AGENTS.md': '# OLD CONTENT - should be replaced\n' },
-    extraFiles: { 'old-file-txt': 'this should be gone' },
+    extraFiles: { 'old-file-txt': 'this should be preserved' },
   });
 
   const pkg = await buildTestPackage(fixtureWorkspace, pkgRoot, {
@@ -136,7 +136,9 @@ test('overwriteExisting: true removes existing workspace first', async () => {
   assert.ok(!agentsContent.includes('OLD CONTENT - should be replaced'));
 
   const oldFileExists = await pathExists(path.join(targetWorkspace, 'old-file-txt'));
-  assert.equal(oldFileExists, false);
+  assert.equal(oldFileExists, true, 'Unrelated files should be preserved with file-level --force');
+  const oldFileContent = await readFile(path.join(targetWorkspace, 'old-file-txt'), 'utf8');
+  assert.equal(oldFileContent, 'this should be preserved');
 });
 
 test('With targetConfigPath - config file is written with agent entry', async () => {

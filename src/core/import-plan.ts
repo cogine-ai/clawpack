@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { RUNTIME_ALWAYS_EXCLUDE } from './constants';
@@ -63,15 +63,26 @@ export async function planImport(params: {
   );
   const targetAgentId = params.targetAgentId ?? params.pkg.agentDefinition.agent.suggestedId;
 
-  const workspaceExists = await pathExists(targetWorkspacePath);
-  if (workspaceExists && !params.force) {
+  const workspacePathState = await inspectWorkspaceTargetPath(targetWorkspacePath);
+  const workspaceExists = workspacePathState.kind === 'directory' || workspacePathState.kind === 'file';
+
+  if (workspacePathState.kind === 'file') {
+    failed.push(`Target workspace path is an existing file, not a directory: ${targetWorkspacePath}`);
+  } else if (workspacePathState.kind === 'blocked-by-parent-file') {
+    failed.push(
+      `Target workspace path cannot be created because parent path is a file: ${workspacePathState.blockingPath}`,
+    );
+    warnings.push(
+      `Import planning found a file/directory conflict above the target workspace path: ${workspacePathState.blockingPath}`,
+    );
+  } else if (workspaceExists && !params.force) {
     failed.push(`Target workspace already exists: ${targetWorkspacePath}`);
     nextSteps.push(
-      'Choose a different --target-workspace path or re-run with --force to overwrite the existing workspace.',
+      'Choose a different --target-workspace path or re-run with --force to overwrite package files in-place (unrelated files are preserved).',
     );
   } else if (workspaceExists) {
     warnings.push(
-      `Target workspace exists and will be overwritten because --force was provided: ${targetWorkspacePath}`,
+      `Target workspace exists; package files will be overwritten in-place because --force was provided (unrelated files are preserved): ${targetWorkspacePath}`,
     );
   }
 
@@ -161,12 +172,62 @@ export async function planImport(params: {
   };
 }
 
+interface WorkspaceTargetPathStateDirectory {
+  kind: 'directory';
+}
+
+interface WorkspaceTargetPathStateFile {
+  kind: 'file';
+}
+
+interface WorkspaceTargetPathStateBlockedByParentFile {
+  kind: 'blocked-by-parent-file';
+  blockingPath: string;
+}
+
+interface WorkspaceTargetPathStateMissing {
+  kind: 'missing';
+}
+
+type WorkspaceTargetPathState =
+  | WorkspaceTargetPathStateDirectory
+  | WorkspaceTargetPathStateFile
+  | WorkspaceTargetPathStateBlockedByParentFile
+  | WorkspaceTargetPathStateMissing;
+
 interface RuntimePlanResult {
   plan?: RuntimeWritePlan;
   failed: string[];
   warnings: string[];
   nextSteps: string[];
   collisions: boolean;
+}
+
+async function inspectWorkspaceTargetPath(targetWorkspacePath: string): Promise<WorkspaceTargetPathState> {
+  if (await pathExists(targetWorkspacePath)) {
+    const stats = await lstat(targetWorkspacePath);
+    return stats.isDirectory() ? { kind: 'directory' } : { kind: 'file' };
+  }
+
+  let current = path.dirname(targetWorkspacePath);
+  while (current !== path.dirname(current)) {
+    if (await pathExists(current)) {
+      const stats = await lstat(current);
+      return stats.isDirectory()
+        ? { kind: 'missing' }
+        : { kind: 'blocked-by-parent-file', blockingPath: current };
+    }
+    current = path.dirname(current);
+  }
+
+  if (await pathExists(current)) {
+    const stats = await lstat(current);
+    return stats.isDirectory()
+      ? { kind: 'missing' }
+      : { kind: 'blocked-by-parent-file', blockingPath: current };
+  }
+
+  return { kind: 'missing' };
 }
 
 async function planRuntimeImport(params: {
