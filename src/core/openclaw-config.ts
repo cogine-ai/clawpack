@@ -1,4 +1,5 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import stripJsonComments from 'strip-json-comments';
 import type { AgentDefinition } from './types';
@@ -38,6 +39,7 @@ export interface MinimalOpenClawConfig {
 export async function discoverOpenClawConfig(
   params: { configPath?: string; cwd?: string } = {},
 ): Promise<{ configPath: string }> {
+  const homePath = homedir();
   const candidates = params.configPath
     ? [path.resolve(params.configPath)]
     : [
@@ -45,7 +47,7 @@ export async function discoverOpenClawConfig(
           ? [path.resolve(process.env.OPENCLAW_CONFIG_PATH)]
           : []),
         ...discoverNearbyConfigCandidates(params.cwd),
-        path.resolve(process.env.HOME ?? '~', '.openclaw', 'openclaw.json'),
+        ...(homePath ? [path.resolve(homePath, '.openclaw', 'openclaw.json')] : []),
       ];
 
   const seen = new Set<string>();
