@@ -136,3 +136,11 @@ test('import --dry-run with --json prints JSON and skips writes', async () => {
 
   await assert.rejects(access(dryRunTargetRoot));
 });
+
+test('import --help describes --force as overwriting config entries when --config is provided', async () => {
+  const { stdout, stderr } = await runCli(['import', '--help']);
+
+  assert.equal(stderr, '');
+  assert.match(stdout, /Overwrite existing workspace files and runtime\s+files in-place/);
+  assert.match(stdout, /update an existing OpenClaw config entry when\s+--config is provided/);
+});

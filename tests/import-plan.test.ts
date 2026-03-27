@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { extractAgentDefinition } from '../src/core/agent-extract';
@@ -215,4 +216,45 @@ test('planImport force overrides both workspace and config collision simultaneou
   assert.equal(plan.writePlan.summary.configAgentCollision, true);
   assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('--force')));
   assert.ok(plan.warnings.some((w) => w.includes('overwritten') && w.includes('config')));
+});
+
+test('planImport blocks when target workspace path exists as a file', async () => {
+  const pkg = await buildFixturePackage();
+  const conflictRoot = path.resolve('tests/tmp/import-plan-file-conflict');
+  const fileTarget = path.join(conflictRoot, 'workspace-file');
+
+  await rm(conflictRoot, { recursive: true, force: true });
+  await mkdir(conflictRoot, { recursive: true });
+  await writeFile(fileTarget, 'not-a-directory\n', 'utf8');
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: fileTarget,
+    targetAgentId: 'file-conflict-agent',
+    force: true,
+  });
+
+  assert.equal(plan.canProceed, false);
+  assert.ok(plan.failed.some((failure) => failure.includes('is an existing file')));
+});
+
+test('planImport blocks when parent path prevents target workspace directory creation', async () => {
+  const pkg = await buildFixturePackage();
+  const blockedRoot = path.join(tmpdir(), 'clawpack-import-plan-parent-blocked');
+  const parentFile = path.join(blockedRoot, 'file-parent');
+  const blockedTarget = path.join(parentFile, 'workspace-child');
+
+  await rm(blockedRoot, { recursive: true, force: true });
+  await mkdir(blockedRoot, { recursive: true });
+  await writeFile(parentFile, 'file-parent\n', 'utf8');
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: blockedTarget,
+    targetAgentId: 'parent-conflict-agent',
+    force: true,
+  });
+
+  assert.equal(plan.canProceed, false);
+  assert.ok(plan.failed.some((failure) => failure.includes('cannot be created because parent path is a file')));
 });
