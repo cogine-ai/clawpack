@@ -112,6 +112,15 @@ test('import --dry-run defaults to human-readable output and skips writes', asyn
   await assert.rejects(access(dryRunTargetRoot));
 });
 
+test('import help includes --force safety semantics', async () => {
+  const { stdout, stderr } = await runCli(['import', '--help']);
+
+  assert.equal(stderr, '');
+  assert.match(stdout, /Overwrite existing workspace files and runtime\s+files in-place/);
+  assert.match(stdout, /does not remove unrelated files/);
+  assert.match(stdout, /update an existing OpenClaw config entry when\s+--config is provided/);
+});
+
 test('import --dry-run with --json prints JSON and skips writes', async () => {
   await prepareBlockedImportFixture();
   await rm(dryRunTargetRoot, { recursive: true, force: true });
