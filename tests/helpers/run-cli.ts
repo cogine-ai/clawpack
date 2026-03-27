@@ -11,6 +11,7 @@ export const runCliExecOptions = {
   maxBuffer: 10 * 1024 * 1024,
   env: {
     ...process.env,
+    HOME: path.join(projectRoot, 'tests', 'tmp', 'isolated-home'),
     OPENCLAW_CONFIG_PATH: path.join(projectRoot, 'tests', 'tmp', '.nonexistent-openclaw.json'),
   },
 };

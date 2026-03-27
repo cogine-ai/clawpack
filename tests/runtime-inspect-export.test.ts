@@ -192,6 +192,27 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   assert.equal(report.runtimeMode, 'default');
 });
 
+test('export --archive --json reports an existing manifestPath', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-archive-json'));
+  const outputPath = path.join(tmpBase, 'export-output-archive-json.ocpkg');
+  const archivePath = `${outputPath}.tar.gz`;
+  await rm(outputPath, { recursive: true, force: true });
+  await rm(archivePath, { recursive: true, force: true });
+
+  const { stdout } = await runCli([
+    'export',
+    '--workspace', wsPath,
+    '--out', outputPath,
+    '--archive',
+    '--json',
+  ]);
+
+  const report = JSON.parse(stdout);
+  assert.equal(report.packageRoot, archivePath);
+  assert.equal(report.manifestPath, archivePath);
+  assert.equal(existsSync(report.manifestPath), true);
+});
+
 test('export --runtime-mode full includes skills and extensions in runtime subtree', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-full'));
   const agentDir = path.join(tmpBase, 'export-agentdir-full');

@@ -286,6 +286,9 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
 }
 ```
 
+For directory exports, `manifestPath` points to the generated `manifest.json` inside the package directory.
+For archive exports, `manifestPath` is set to the archive file path itself so JSON output never points at a deleted staging path.
+
 ### 3) Import a package
 
 Accepts both `.ocpkg/` directories and `.ocpkg.tar.gz` archives:
@@ -374,7 +377,13 @@ Config is resolved in this order:
 
 1. explicit `--config` flag
 2. `OPENCLAW_CONFIG_PATH` environment variable
-3. `~/.openclaw/openclaw.json` (default)
+3. a nearby config discovered from `cwd` by checking `./.openclaw/openclaw.json`, `./openclaw.json`, and then the same two locations in up to four parent directories
+4. `~/.openclaw/openclaw.json` (default)
+
+Notes:
+- if you pass `--config`, Clawpacker does **not** fall through to env / nearby / default discovery when that path is missing
+- relative `workspace` and `agentDir` values inside config are resolved relative to the config file directory
+- workspace matching prefers exact resolved paths; basename-only fallback is used only when it is unambiguous
 
 ### Portable config philosophy
 

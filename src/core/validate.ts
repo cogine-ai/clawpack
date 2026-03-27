@@ -98,7 +98,9 @@ export async function validateImportedWorkspace(params: {
       } else {
         report.passed.push(`OpenClaw config agent present: ${params.agentId} (${configPath})`);
         const resolvedConfigWorkspace = resolved.agent.workspace
-          ? path.resolve(resolved.agent.workspace)
+          ? path.isAbsolute(resolved.agent.workspace)
+            ? path.resolve(resolved.agent.workspace)
+            : path.resolve(path.dirname(configPath), resolved.agent.workspace)
           : undefined;
         if (!resolvedConfigWorkspace) {
           report.failed.push(

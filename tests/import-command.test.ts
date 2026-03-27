@@ -19,6 +19,7 @@ async function runCli(args: string[]) {
     maxBuffer: 10 * 1024 * 1024,
     env: {
       ...process.env,
+      HOME: path.join(path.resolve('.'), 'tests', 'tmp', 'isolated-home'),
       OPENCLAW_CONFIG_PATH: path.join(path.resolve('.'), 'tests', 'tmp', '.nonexistent-openclaw.json'),
     },
   });

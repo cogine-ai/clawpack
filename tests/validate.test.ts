@@ -166,6 +166,48 @@ test('validate reports target config consistency when config path is provided', 
   assert.ok(mismatchReport.failed.some((entry: string) => entry.includes('workspace mismatch')));
 });
 
+test('validate anchors relative config workspace paths to the config directory', async () => {
+  await exportAndImport();
+  const configRoot = path.resolve('tests/tmp/validate-relative-config');
+  const configPath = path.join(configRoot, 'nested', 'openclaw-config.json');
+  await rm(configRoot, { recursive: true, force: true });
+  await mkdir(path.dirname(configPath), { recursive: true });
+
+  const relativeWorkspace = path.relative(path.dirname(configPath), targetRoot);
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        agents: {
+          list: [
+            {
+              id: 'supercoder-copy',
+              name: 'Supercoder',
+              workspace: relativeWorkspace,
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const { stdout } = await runCli([
+    'validate',
+    '--target-workspace',
+    targetRoot,
+    '--agent-id',
+    'supercoder-copy',
+    '--config',
+    configPath,
+    '--json',
+  ]);
+  const report = JSON.parse(stdout);
+  assert.equal(report.failed.some((entry: string) => entry.includes('workspace mismatch')), false);
+  assert.ok(report.passed.some((entry: string) => entry.includes('workspace matches')));
+});
+
 test('validate reports missing required workspace files as failures', async () => {
   await exportAndImport();
   await rm(path.join(targetRoot, 'AGENTS.md'), { force: true });
