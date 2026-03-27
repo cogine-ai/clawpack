@@ -251,7 +251,7 @@ export function registerImportCommand(command: Command): void {
     .option('--agent-id <id>', 'Target agent id override')
     .option('--target-agent-dir <path>', 'Target agentDir for runtime file import. Required when the package includes a runtime layer and no agentDir is discoverable from config.')
     .option('--config <path>', 'Target OpenClaw config path')
-    .option('--force', 'Overwrite existing target workspace and runtime files')
+    .option('--force', 'Overwrite existing workspace files and runtime files in-place (does not remove unrelated files)')
     .option('--dry-run', 'Print the import plan (including runtime details) and exit without writing files')
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runImport);

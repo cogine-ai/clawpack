@@ -414,7 +414,7 @@ Clawpacker is designed to be conservative.
 - existing workspace collisions block by default
 - existing config agent collisions block by default
 - existing runtime file collisions block by default
-- `--force` is required to overwrite existing targets (workspace and runtime files)
+- `--force` is required to overwrite existing targets (workspace and runtime files); workspace files are replaced in-place without removing unrelated files
 - `--force` never writes auth or session files — these are always excluded
 - `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths
 - import writes local metadata so validation can confirm what happened later
@@ -496,7 +496,7 @@ Current limitations to be aware of:
 
 - package format should still be treated as early-stage (currently v2)
 - skills are detected and optionally bundled via `--runtime-mode full`, but not auto-installed on import
-- import assumes conservative file-level replacement semantics via `--force`
+- `--force` uses file-level replacement semantics — only files present in the package are overwritten; unrelated files in the target workspace are preserved
 - OpenClaw config support is minimal by design
 - runtime layer path rewriting only handles `settings.json` — other config files with embedded paths require manual update
 

@@ -67,11 +67,11 @@ export async function planImport(params: {
   if (workspaceExists && !params.force) {
     failed.push(`Target workspace already exists: ${targetWorkspacePath}`);
     nextSteps.push(
-      'Choose a different --target-workspace path or re-run with --force to overwrite the existing workspace.',
+      'Choose a different --target-workspace path or re-run with --force to overwrite package files in-place (unrelated files are preserved).',
     );
   } else if (workspaceExists) {
     warnings.push(
-      `Target workspace exists and will be overwritten because --force was provided: ${targetWorkspacePath}`,
+      `Target workspace exists; package files will be overwritten in-place because --force was provided (unrelated files are preserved): ${targetWorkspacePath}`,
     );
   }
 
