@@ -39,7 +39,7 @@ export async function writePackageArchive(params: {
 
     return {
       packageRoot: archivePath,
-      manifestPath: dirResult.manifestPath,
+      manifestPath: archivePath,
       fileCount: dirResult.fileCount,
     };
   } finally {

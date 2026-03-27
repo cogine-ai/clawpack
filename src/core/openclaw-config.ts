@@ -1,4 +1,5 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import stripJsonComments from 'strip-json-comments';
 import type { AgentDefinition } from './types';
@@ -38,20 +39,32 @@ export interface MinimalOpenClawConfig {
 export async function discoverOpenClawConfig(
   params: { configPath?: string; cwd?: string } = {},
 ): Promise<{ configPath: string }> {
+  const homePath = homedir();
   const candidates = params.configPath
     ? [path.resolve(params.configPath)]
-    : process.env.OPENCLAW_CONFIG_PATH
-      ? [path.resolve(process.env.OPENCLAW_CONFIG_PATH)]
-      : [path.resolve(process.env.HOME ?? '~', '.openclaw', 'openclaw.json')];
+    : [
+        ...(process.env.OPENCLAW_CONFIG_PATH
+          ? [path.resolve(process.env.OPENCLAW_CONFIG_PATH)]
+          : []),
+        ...discoverNearbyConfigCandidates(params.cwd),
+        ...(homePath ? [path.resolve(homePath, '.openclaw', 'openclaw.json')] : []),
+      ];
 
-  for (const candidate of candidates) {
+  const seen = new Set<string>();
+  const deduped = candidates.filter((candidate) => {
+    if (seen.has(candidate)) return false;
+    seen.add(candidate);
+    return true;
+  });
+
+  for (const candidate of deduped) {
     try {
       await access(candidate);
       return { configPath: candidate };
     } catch {}
   }
 
-  throw new Error(`OpenClaw config not found. Checked: ${candidates.join(', ')}`);
+  throw new Error(`OpenClaw config not found. Checked: ${deduped.join(', ')}`);
 }
 
 export async function loadOpenClawConfig(params: {
@@ -91,7 +104,7 @@ export async function resolveAgentDir(params: {
       (params.agentId
         ? resolveAgentFromConfig(config, params.agentId)
         : workspacePath
-          ? findAgentByWorkspace(config, workspacePath)
+          ? findAgentByWorkspace(config, workspacePath, configPath)
           : undefined) ?? resolveAgentFromConfig(config, params.agentId);
 
     if (!resolved?.agent.agentDir) return undefined;
@@ -149,7 +162,7 @@ export function extractPortableAgentDefinition(params: {
   const resolved =
     (params.agentId
       ? resolveAgentFromConfig(params.config, params.agentId)
-      : findAgentByWorkspace(params.config, params.workspacePath)) ??
+      : findAgentByWorkspace(params.config, params.workspacePath, params.configPath)) ??
     resolveAgentFromConfig(params.config, params.agentId);
 
   const selectedAgentId = resolved?.resolvedId ?? params.agentId ?? fallbackId;
@@ -345,22 +358,63 @@ function extractOpenClawVersion(config: MinimalOpenClawConfig): string | undefin
 function findAgentByWorkspace(
   config: MinimalOpenClawConfig,
   workspacePath: string,
+  configPath?: string,
 ): { agent: AgentConfigEntry; resolvedId: string } | undefined {
-  const basename = path.basename(workspacePath);
+  const resolvedWorkspacePath = path.resolve(workspacePath);
+  const basename = path.basename(resolvedWorkspacePath);
+  const entries = [
+    ...(config.agent ? [{ agent: config.agent, resolvedId: config.agent.id ?? 'default' }] : []),
+    ...(
+      config.agents?.list?.map((entry) => ({
+        agent: entry,
+        resolvedId: entry.id ?? 'default',
+      })) ?? []
+    ),
+  ];
 
-  if (config.agent?.workspace && path.basename(config.agent.workspace) === basename) {
-    return { agent: config.agent, resolvedId: config.agent.id ?? 'default' };
-  }
+  const exactMatch = entries.find(({ agent }) => {
+    const candidate = resolveConfigWorkspacePath(agent.workspace, configPath);
+    return candidate !== undefined && candidate === resolvedWorkspacePath;
+  });
+  if (exactMatch) return exactMatch;
 
-  if (config.agents?.list) {
-    for (const entry of config.agents.list) {
-      if (entry.workspace && path.basename(entry.workspace) === basename) {
-        return { agent: entry, resolvedId: entry.id ?? 'default' };
-      }
+  const basenameMatches = entries.filter(({ agent }) => {
+    const candidate = resolveConfigWorkspacePath(agent.workspace, configPath);
+    return candidate !== undefined && path.basename(candidate) === basename;
+  });
+
+  return basenameMatches.length === 1 ? basenameMatches[0] : undefined;
+}
+
+function discoverNearbyConfigCandidates(cwd?: string): string[] {
+  if (!cwd) return [];
+
+  const resolvedCwd = path.resolve(cwd);
+  const resolvedHome = process.env.HOME ? path.resolve(process.env.HOME) : undefined;
+  const candidates: string[] = [];
+  let current = resolvedCwd;
+
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (resolvedHome && current === resolvedHome) {
+      break;
     }
+
+    candidates.push(path.join(current, '.openclaw', 'openclaw.json'));
+    candidates.push(path.join(current, 'openclaw.json'));
+
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
 
-  return undefined;
+  return candidates;
+}
+
+function resolveConfigWorkspacePath(workspace: string | undefined, configPath?: string): string | undefined {
+  if (!workspace) return undefined;
+  if (path.isAbsolute(workspace)) return path.resolve(workspace);
+  if (configPath) return path.resolve(path.dirname(configPath), workspace);
+  return path.resolve(workspace);
 }
 
 function toTitleCase(value: string): string {

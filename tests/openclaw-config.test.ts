@@ -54,10 +54,56 @@ test('discoverOpenClawConfig respects OPENCLAW_CONFIG_PATH env var', async () =>
 });
 
 test('discoverOpenClawConfig throws when no config found', async () => {
-  await assert.rejects(
-    discoverOpenClawConfig({ configPath: '/nonexistent/path/openclaw.json' }),
-    /OpenClaw config not found/,
-  );
+  const missingRoot = path.join(parserFixtureRoot, 'missing-instance');
+  await rm(missingRoot, { recursive: true, force: true });
+  await mkdir(missingRoot, { recursive: true });
+
+  const originalConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+  const originalHome = process.env.HOME;
+  try {
+    delete process.env.OPENCLAW_CONFIG_PATH;
+    process.env.HOME = missingRoot;
+    await assert.rejects(
+      discoverOpenClawConfig({ cwd: missingRoot }),
+      /OpenClaw config not found/,
+    );
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.OPENCLAW_CONFIG_PATH;
+    } else {
+      process.env.OPENCLAW_CONFIG_PATH = originalConfigPath;
+    }
+
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+  }
+});
+
+test('discoverOpenClawConfig discovers nearby config from cwd', async () => {
+  const instanceRoot = path.join(parserFixtureRoot, 'nearby-instance');
+  const workspaceRoot = path.join(instanceRoot, 'workspaces', 'workspace-demo');
+  const configPath = path.join(instanceRoot, '.openclaw', 'openclaw.json');
+
+  await rm(instanceRoot, { recursive: true, force: true });
+  await mkdir(workspaceRoot, { recursive: true });
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(configPath, '{}', 'utf8');
+
+  const original = process.env.OPENCLAW_CONFIG_PATH;
+  try {
+    delete process.env.OPENCLAW_CONFIG_PATH;
+    const discovered = await discoverOpenClawConfig({ cwd: workspaceRoot });
+    assert.equal(discovered.configPath, configPath);
+  } finally {
+    if (original === undefined) {
+      delete process.env.OPENCLAW_CONFIG_PATH;
+    } else {
+      process.env.OPENCLAW_CONFIG_PATH = original;
+    }
+  }
 });
 
 // --- loading agents.list format ---
@@ -182,6 +228,59 @@ test('resolveAgentDir matches the workspace agent when agentId is omitted', asyn
   assert.equal(
     resolved,
     path.resolve(path.dirname(configPath), 'agents/workspace-agent'),
+  );
+});
+
+test('resolveAgentDir prefers exact workspace path over basename-only match', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-prefers-exact-workspace.json',
+    JSON.stringify({
+      agents: {
+        list: [
+          {
+            id: 'wrong-agent',
+            workspace: '/tmp/elsewhere/workspace-shared',
+            agentDir: 'agents/wrong-agent',
+          },
+          {
+            id: 'right-agent',
+            workspace: fixtureWorkspace,
+            agentDir: 'agents/right-agent',
+          },
+        ],
+      },
+    }),
+  );
+
+  const targetWorkspace = path.join('/tmp', 'another-parent', path.basename(fixtureWorkspace));
+  const exactConfigPath = await writeJsoncFixture(
+    'resolve-agent-dir-exact-workspace.json',
+    JSON.stringify({
+      agents: {
+        list: [
+          {
+            id: 'wrong-agent',
+            workspace: fixtureWorkspace,
+            agentDir: 'agents/wrong-agent',
+          },
+          {
+            id: 'right-agent',
+            workspace: targetWorkspace,
+            agentDir: 'agents/right-agent',
+          },
+        ],
+      },
+    }),
+  );
+
+  const resolved = await resolveAgentDir({
+    configPath: exactConfigPath,
+    workspacePath: targetWorkspace,
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(exactConfigPath), 'agents/right-agent'),
   );
 });
 
