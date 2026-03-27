@@ -69,6 +69,7 @@ Beyond file-level exclusions, Clawpacker never exports or restores:
 - secrets, auth state, cookies, API keys, credentials
 - session/runtime state
 - channel bindings / routing state
+- cron scheduling / scheduled-job registration
 - globally installed skills or extensions
 - machine-specific absolute-path behavior that is not portable
 
@@ -434,8 +435,11 @@ Even after a successful import, you should still:
 
 - review `USER.md`, `TOOLS.md`, and `MEMORY.md`
 - reinstall any required skills manually
-- recreate channel bindings manually
+- reconfigure channel bindings and cron jobs manually
+- run `openclaw doctor`
 - verify model/provider availability on the target instance
+
+Clawpacker packages a portable workspace template plus an optional runtime slice. For full-instance moves or environment repair, follow the official OpenClaw migration flow rather than treating clawpacker as a complete instance backup.
 
 ## Package structure
 
@@ -492,6 +496,7 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 - secret migration (API keys and auth tokens are stripped on export)
 - auth/session migration (auth files are always excluded)
 - channel binding export/import
+- cron export/import or scheduler registration
 - zero-touch import across mismatched environments
 
 ## Roadmap / known limitations

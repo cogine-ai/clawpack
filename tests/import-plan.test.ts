@@ -42,7 +42,8 @@ test('planImport requires target inputs and warns about v1 manual follow-up', as
   );
   assert.equal(plan.canProceed, false);
   assert.ok(plan.warnings.some((warning) => warning.includes('Skills are manifest-only')));
-  assert.ok(plan.nextSteps.some((step) => step.includes('Channel bindings')));
+  assert.ok(plan.nextSteps.some((step) => step.includes('Bindings and cron jobs are not migrated by clawpacker')));
+  assert.ok(plan.nextSteps.some((step) => step.includes('openclaw doctor')));
 });
 
 test('planImport refuses collisions by default and only allows overwrite with --force', async () => {

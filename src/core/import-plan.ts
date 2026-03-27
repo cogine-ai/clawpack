@@ -23,27 +23,11 @@ export async function planImport(params: {
   const requiredInputs: ImportHints['requiredInputs'] = [];
   const failed: string[] = [];
   const warnings = [...params.pkg.importHints.warnings];
-  const nextSteps = ['Review the imported identity and memory files before using the agent.'];
-
-  if (params.pkg.bindings && params.pkg.bindings.length > 0) {
-    nextSteps.push(
-      'Channel bindings were included in the package. Verify channel connections on the target instance.',
-    );
-  } else {
-    nextSteps.push(
-      'Channel bindings were not included. Configure channel bindings manually on the target instance.',
-    );
-  }
-
-  if (params.pkg.cronJobs && params.pkg.cronJobs.length > 0) {
-    nextSteps.push(
-      'Cron jobs were included in the package. Verify cron scheduling on the target instance.',
-    );
-  } else {
-    nextSteps.push(
-      'Cron jobs were not included. Create cron entries manually if scheduled tasks are needed.',
-    );
-  }
+  const nextSteps = [
+    'Review the imported identity and memory files before using the agent.',
+    'Bindings and cron jobs are not migrated by clawpacker; reconfigure any channel routing and scheduled jobs manually on the target instance.',
+    'Run `openclaw doctor` and manually verify provider/model availability after import.',
+  ];
 
   if (!params.targetWorkspacePath) {
     requiredInputs.push({

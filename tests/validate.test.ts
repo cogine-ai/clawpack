@@ -74,7 +74,8 @@ test('validate command reports passed warnings failed and nextSteps', async () =
   assert.ok(
     report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
   );
-  assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
+  assert.ok(report.nextSteps.some((step: string) => step.includes('Bindings and cron jobs are not migrated by clawpacker')));
+  assert.ok(report.nextSteps.some((step: string) => step.includes('openclaw doctor')));
   assert.equal(
     existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
     true,

@@ -136,7 +136,10 @@ export async function validateImportedWorkspace(params: {
   }
 
   report.warnings.push('Skills are manifest-only and may require manual installation.');
-  report.nextSteps.push('Channel bindings must be configured manually on the target instance.');
+  report.nextSteps.push(
+    'Bindings and cron jobs are not migrated by clawpacker; reconfigure any channel routing and scheduled jobs manually on the target instance.',
+  );
+  report.nextSteps.push('Run `openclaw doctor` and manually verify provider/model availability after import.');
   report.nextSteps.push(
     'Review imported USER.md, TOOLS.md, and MEMORY.md for target-specific adjustments.',
   );
