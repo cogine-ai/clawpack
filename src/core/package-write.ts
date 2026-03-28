@@ -74,7 +74,7 @@ export async function writePackageDirectory(params: {
 
   const warnings = [
     'Skills are manifest-only and may require manual installation.',
-    'Bindings and cron jobs are not migrated by clawpacker and must be reconfigured manually on the target instance.',
+    'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
   ];
 
   const importHints: ImportHints = {
