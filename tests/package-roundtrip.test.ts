@@ -150,7 +150,8 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
   assert.ok(
     report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
   );
-  assert.ok(report.nextSteps.some((step: string) => step.includes('Channel bindings')));
+  assert.ok(report.nextSteps.some((step: string) => step.includes('does not restore live bindings or scheduled jobs')));
+  assert.ok(report.nextSteps.some((step: string) => step.includes('openclaw doctor')));
   assert.equal(
     existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
     true,

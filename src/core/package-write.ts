@@ -72,13 +72,10 @@ export async function writePackageDirectory(params: {
     checksums[path.posix.join('workspace', file.relativePath)] = await checksumFile(targetPath);
   }
 
-  const warnings = ['Skills are manifest-only and may require manual installation.'];
-  if (!params.bindings || params.bindings.length === 0) {
-    warnings.push('Channel bindings were not included in this package.');
-  }
-  if (!params.cronJobs || params.cronJobs.length === 0) {
-    warnings.push('Cron jobs were not included in this package.');
-  }
+  const warnings = [
+    'Skills are manifest-only and may require manual installation.',
+    'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
+  ];
 
   const importHints: ImportHints = {
     requiredInputs: [
