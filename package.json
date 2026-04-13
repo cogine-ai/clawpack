@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "commander": "^13.1.0",
-    "strip-json-comments": "^5.0.3",
+    "json5": "^2.2.3",
     "tar": "^7.5.11"
   },
   "devDependencies": {
