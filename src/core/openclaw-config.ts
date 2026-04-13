@@ -42,6 +42,21 @@ const LEGACY_STATE_DIRNAMES = ['.clawdbot'];
 const CONFIG_FILENAME = 'openclaw.json';
 const LEGACY_CONFIG_FILENAMES = ['clawdbot.json'];
 const MAX_INCLUDE_DEPTH = 10;
+const DEFAULT_MAIN_AGENT_ID = 'main';
+const DEFAULT_WORKSPACE_DIRNAME = 'workspace';
+const DEFAULT_AGENTS_DIRNAME = 'agents';
+const DEFAULT_AGENT_LEAF_DIRNAME = 'agent';
+
+type ResolvedAgentEntry = {
+  agent: AgentConfigEntry;
+  resolvedId: string;
+  source: 'agents.list' | 'legacy-agent';
+};
+
+type ResolvedPortableAgentEntry = ResolvedAgentEntry & {
+  effectiveAgent: AgentConfigEntry;
+  defaultDerivedFields: string[];
+};
 
 export async function discoverOpenClawConfig(
   params: { configPath?: string; cwd?: string } = {},
@@ -107,11 +122,7 @@ export async function resolveAgentDir(params: {
         : workspacePath
           ? findAgentByWorkspace(config, workspacePath, configPath)
           : undefined) ?? resolveAgentFromConfig(config, params.agentId);
-
-    if (!resolved?.agent.agentDir) return undefined;
-
-    const agentDir = resolved.agent.agentDir;
-    return path.isAbsolute(agentDir) ? agentDir : path.resolve(path.dirname(configPath), agentDir);
+    return resolved ? resolveAgentDirForEntry(config, configPath, resolved) : undefined;
   } catch {
     return undefined;
   }
@@ -120,31 +131,20 @@ export async function resolveAgentDir(params: {
 export function resolveAgentFromConfig(
   config: MinimalOpenClawConfig,
   agentId?: string,
-): { agent: AgentConfigEntry; resolvedId: string } | undefined {
-  if (config.agent) {
-    const singleId = config.agent.id ?? 'default';
-    if (!agentId || agentId === singleId) {
-      return { agent: config.agent, resolvedId: singleId };
+): ResolvedAgentEntry | undefined {
+  if (config.agents?.list?.length) {
+    const currentAgents = listConfiguredAgents(config);
+    if (agentId) {
+      return currentAgents.find((entry) => entry.resolvedId === agentId);
     }
+
+    return resolveDefaultCurrentAgent(config);
   }
 
-  if (config.agents?.list) {
-    for (const entry of config.agents.list) {
-      const entryId = entry.id;
-      if (!entryId) continue;
-      if (agentId === entryId) {
-        return { agent: entry, resolvedId: entryId };
-      }
-    }
-    if (!agentId) {
-      const defaultAgent = config.agents.list.find((e) => e.default) ?? config.agents.list[0];
-      if (defaultAgent) {
-        return { agent: defaultAgent, resolvedId: defaultAgent.id ?? 'default' };
-      }
-    }
-  }
-
-  return undefined;
+  const legacyAgent = resolveLegacyAgent(config);
+  if (!legacyAgent) return undefined;
+  if (agentId && agentId !== legacyAgent.resolvedId) return undefined;
+  return legacyAgent;
 }
 
 export function extractPortableAgentDefinition(params: {
@@ -167,7 +167,10 @@ export function extractPortableAgentDefinition(params: {
     resolveAgentFromConfig(params.config, params.agentId);
 
   const selectedAgentId = resolved?.resolvedId ?? params.agentId ?? fallbackId;
-  const sourceAgent = resolved?.agent;
+  const resolvedPortable = resolved
+    ? resolvePortableAgentEntry(params.config, params.configPath, resolved)
+    : undefined;
+  const sourceAgent = resolvedPortable?.effectiveAgent;
 
   if (!sourceAgent) {
     throw new Error(`Agent not found in OpenClaw config: ${selectedAgentId}`);
@@ -247,7 +250,14 @@ export function extractPortableAgentDefinition(params: {
       ...(extraFields.memorySearch ? { 'agent.memorySearch': 'portable' } : {}),
       'agent.secrets': 'excluded',
     },
-    notes: [`Portable agent definition derived from OpenClaw config at ${params.configPath}.`],
+    notes: [
+      `Portable agent definition derived from OpenClaw config at ${params.configPath}.`,
+      ...(resolvedPortable?.defaultDerivedFields.length
+        ? [
+            `Applied agents.defaults to derive effective fields: ${resolvedPortable.defaultDerivedFields.join(', ')}.`,
+          ]
+        : []),
+    ],
   };
 }
 
@@ -315,25 +325,25 @@ export async function upsertPortableAgentDefinition(params: {
       : {}),
   };
 
-  if (config.agents?.list) {
-    const idx = config.agents.list.findIndex((e) => e.id === params.targetAgentId);
-    if (idx >= 0) {
-      config.agents.list[idx] = newEntry;
-    } else {
-      config.agents.list.push(newEntry);
-    }
-  } else if (config.agent) {
-    const existingId = config.agent.id ?? 'default';
-    if (existingId === params.targetAgentId) {
-      config.agent = newEntry;
-    } else {
-      const existingEntry: AgentConfigEntry = { id: existingId, ...config.agent };
-      delete (config as Record<string, unknown>).agent;
-      config.agents = { list: [existingEntry, newEntry] };
-    }
-  } else {
-    config.agents = { list: [newEntry] };
+  if (!config.agents) {
+    config.agents = {};
   }
+
+  const existingEntries = listConfiguredAgents(config);
+  const normalizedEntries: AgentConfigEntry[] =
+    existingEntries.length > 0
+      ? existingEntries.map((entry) => ({ ...entry.agent, id: entry.resolvedId }))
+      : [];
+
+  const idx = normalizedEntries.findIndex((entry) => entry.id === params.targetAgentId);
+  if (idx >= 0) {
+    normalizedEntries[idx] = newEntry;
+  } else {
+    normalizedEntries.push(newEntry);
+  }
+
+  config.agents.list = normalizedEntries;
+  delete (config as Record<string, unknown>).agent;
 
   await mkdir(path.dirname(resolvedPath), { recursive: true });
   await writeFile(resolvedPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -359,31 +369,23 @@ function findAgentByWorkspace(
   config: MinimalOpenClawConfig,
   workspacePath: string,
   configPath?: string,
-): { agent: AgentConfigEntry; resolvedId: string } | undefined {
+): ResolvedAgentEntry | undefined {
   const resolvedWorkspacePath = path.resolve(workspacePath);
   const basename = path.basename(resolvedWorkspacePath);
-  const entries = [
-    ...(config.agent ? [{ agent: config.agent, resolvedId: config.agent.id ?? 'default' }] : []),
-    ...(
-      config.agents?.list?.map((entry) => ({
-        agent: entry,
-        resolvedId: entry.id ?? 'default',
-      })) ?? []
-    ),
-  ];
+  const entries = resolveWorkspaceCandidates(config, configPath);
 
-  const exactMatch = entries.find(({ agent }) => {
-    const candidate = resolveConfigWorkspacePath(agent.workspace, configPath);
-    return candidate !== undefined && candidate === resolvedWorkspacePath;
-  });
-  if (exactMatch) return exactMatch;
+  const workspaceMatches = entries
+    .filter(({ workspaceRoot }) => isSameOrDescendantPath(workspaceRoot, resolvedWorkspacePath))
+    .sort((left, right) => right.workspaceRoot.length - left.workspaceRoot.length);
+  if (workspaceMatches.length > 0) {
+    return workspaceMatches[0].entry;
+  }
 
-  const basenameMatches = entries.filter(({ agent }) => {
-    const candidate = resolveConfigWorkspacePath(agent.workspace, configPath);
-    return candidate !== undefined && path.basename(candidate) === basename;
-  });
+  const basenameMatches = entries.filter(
+    ({ workspaceRoot }) => path.basename(workspaceRoot) === basename,
+  );
 
-  return basenameMatches.length === 1 ? basenameMatches[0] : undefined;
+  return basenameMatches.length === 1 ? basenameMatches[0].entry : undefined;
 }
 
 function resolveConfigWorkspacePath(workspace: string | undefined, configPath?: string): string | undefined {
@@ -391,6 +393,204 @@ function resolveConfigWorkspacePath(workspace: string | undefined, configPath?: 
   if (path.isAbsolute(workspace)) return path.resolve(workspace);
   if (configPath) return path.resolve(path.dirname(configPath), workspace);
   return path.resolve(workspace);
+}
+
+export function listConfiguredAgents(config: MinimalOpenClawConfig): ResolvedAgentEntry[] {
+  const currentAgents = config.agents?.list?.length
+    ? config.agents.list.map((entry) => ({
+        agent: entry,
+        resolvedId: resolveListAgentId(entry),
+        source: 'agents.list' as const,
+      }))
+    : [];
+  if (currentAgents.length > 0) {
+    return currentAgents;
+  }
+
+  const legacyAgent = resolveLegacyAgent(config);
+  return legacyAgent ? [legacyAgent] : [];
+}
+
+export function resolveEffectiveAgentDir(
+  config: MinimalOpenClawConfig,
+  configPath: string,
+  agentId: string,
+): string | undefined {
+  const resolved = resolveAgentFromConfig(config, agentId);
+  return resolved ? resolveAgentDirForEntry(config, configPath, resolved) : undefined;
+}
+
+export function resolveEffectiveWorkspace(
+  config: MinimalOpenClawConfig,
+  configPath: string,
+  agentId: string,
+): string | undefined {
+  const resolved = resolveAgentFromConfig(config, agentId);
+  return resolved ? resolveWorkspaceForEntry(config, configPath, resolved) : undefined;
+}
+
+function resolveDefaultCurrentAgent(config: MinimalOpenClawConfig): ResolvedAgentEntry | undefined {
+  if (!config.agents?.list?.length) return undefined;
+
+  const defaultAgent = config.agents.list.find((entry) => entry.default) ?? config.agents.list[0];
+  return {
+    agent: defaultAgent,
+    resolvedId: resolveListAgentId(defaultAgent),
+    source: 'agents.list',
+  };
+}
+
+function resolveLegacyAgent(config: MinimalOpenClawConfig): ResolvedAgentEntry | undefined {
+  if (!config.agent) return undefined;
+  return {
+    agent: config.agent,
+    resolvedId: config.agent.id ?? 'default',
+    source: 'legacy-agent',
+  };
+}
+
+function resolvePortableAgentEntry(
+  config: MinimalOpenClawConfig,
+  configPath: string,
+  entry: ResolvedAgentEntry,
+): ResolvedPortableAgentEntry {
+  if (entry.source !== 'agents.list') {
+    return {
+      ...entry,
+      effectiveAgent: { ...entry.agent },
+      defaultDerivedFields: [],
+    };
+  }
+
+  const defaults = config.agents?.defaults ?? {};
+  const effectiveAgent: AgentConfigEntry = { ...entry.agent };
+  const defaultDerivedFields: string[] = [];
+
+  for (const field of [
+    'identity',
+    'model',
+    'tools',
+    'skills',
+    'heartbeat',
+    'sandbox',
+    'runtime',
+    'params',
+    'subagents',
+    'groupChat',
+    'humanDelay',
+    'memorySearch',
+  ] as const) {
+    const defaultValue = defaults[field];
+    const currentValue = effectiveAgent[field];
+    const mergedValue = mergePortableField(defaultValue, currentValue);
+    if (mergedValue !== undefined) {
+      (effectiveAgent as Record<string, unknown>)[field] = mergedValue;
+    }
+    if (currentValue === undefined && defaultValue !== undefined) {
+      defaultDerivedFields.push(`agent.${field}`);
+    }
+  }
+
+  const resolvedWorkspace = resolveWorkspaceForEntry(config, configPath, entry);
+  if (resolvedWorkspace && entry.agent.workspace === undefined && defaults.workspace !== undefined) {
+    defaultDerivedFields.push('agent.workspace');
+  }
+
+  return {
+    ...entry,
+    effectiveAgent,
+    defaultDerivedFields,
+  };
+}
+
+function resolveWorkspaceCandidates(
+  config: MinimalOpenClawConfig,
+  configPath?: string,
+): Array<{ entry: ResolvedAgentEntry; workspaceRoot: string }> {
+  return listConfiguredAgents(config)
+    .map((entry) => {
+      const workspaceRoot = resolveWorkspaceForEntry(config, configPath, entry);
+      return workspaceRoot ? { entry, workspaceRoot } : undefined;
+    })
+    .filter((entry): entry is { entry: ResolvedAgentEntry; workspaceRoot: string } => entry !== undefined);
+}
+
+function resolveWorkspaceForEntry(
+  config: MinimalOpenClawConfig,
+  configPath: string | undefined,
+  entry: { agent: AgentConfigEntry; resolvedId: string },
+): string | undefined {
+  const explicitWorkspace = resolveConfigWorkspacePath(entry.agent.workspace, configPath);
+  if (explicitWorkspace) return explicitWorkspace;
+
+  if (!config.agents?.list?.length) {
+    return undefined;
+  }
+
+  const workspaceRoot = resolveWorkspaceRoot(config, configPath);
+  const defaultAgent = resolveDefaultCurrentAgent(config);
+  return defaultAgent?.resolvedId === entry.resolvedId
+    ? workspaceRoot
+    : path.join(workspaceRoot, entry.resolvedId);
+}
+
+function resolveWorkspaceRoot(config: MinimalOpenClawConfig, configPath?: string): string {
+  return resolveConfigWorkspacePath(
+    typeof config.agents?.defaults?.workspace === 'string'
+      ? config.agents.defaults.workspace
+      : undefined,
+    configPath,
+  ) ?? resolveConfigWorkspacePath(DEFAULT_WORKSPACE_DIRNAME, configPath) ?? path.resolve(DEFAULT_WORKSPACE_DIRNAME);
+}
+
+function resolveAgentDirForEntry(
+  config: MinimalOpenClawConfig,
+  configPath: string,
+  entry: { agent: AgentConfigEntry; resolvedId: string },
+): string | undefined {
+  const explicitAgentDir = resolveConfigWorkspacePath(entry.agent.agentDir, configPath);
+  if (explicitAgentDir) return explicitAgentDir;
+
+  if (!config.agents?.list?.length) {
+    return undefined;
+  }
+
+  const agentDirRoot = resolveConfigWorkspacePath(
+    typeof config.agents?.defaults?.agentDir === 'string'
+      ? config.agents.defaults.agentDir
+      : undefined,
+    configPath,
+  ) ?? path.resolve(path.dirname(configPath), DEFAULT_AGENTS_DIRNAME);
+
+  return path.join(agentDirRoot, entry.resolvedId, DEFAULT_AGENT_LEAF_DIRNAME);
+}
+
+function mergePortableField(defaultValue: unknown, currentValue: unknown): unknown {
+  if (currentValue !== undefined) {
+    if (isPlainObject(defaultValue) && isPlainObject(currentValue)) {
+      return { ...defaultValue, ...currentValue };
+    }
+    return currentValue;
+  }
+
+  if (Array.isArray(defaultValue)) {
+    return [...defaultValue];
+  }
+
+  if (isPlainObject(defaultValue)) {
+    return { ...defaultValue };
+  }
+
+  return defaultValue;
+}
+
+function resolveListAgentId(entry: AgentConfigEntry): string {
+  return entry.id ?? DEFAULT_MAIN_AGENT_ID;
+}
+
+function isSameOrDescendantPath(rootPath: string, candidatePath: string): boolean {
+  const relative = path.relative(rootPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function toTitleCase(value: string): string {

@@ -2,7 +2,12 @@ import { lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { RUNTIME_ALWAYS_EXCLUDE } from './constants';
-import { hasAgentInConfig, loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
+import {
+  hasAgentInConfig,
+  listConfiguredAgents,
+  loadOpenClawConfig,
+  resolveEffectiveAgentDir,
+} from './openclaw-config';
 import { computePathRewrites } from './path-rewrite';
 import type {
   ImportHints,
@@ -366,11 +371,7 @@ async function resolveTargetAgentDir(params: {
     const { config, configPath } = await loadOpenClawConfig({
       configPath: params.targetConfigPath,
     });
-    const resolved = resolveAgentFromConfig(config, params.targetAgentId);
-    if (resolved?.agent.agentDir) {
-      const ad = resolved.agent.agentDir;
-      return path.isAbsolute(ad) ? ad : path.resolve(path.dirname(configPath), ad);
-    }
+    return resolveEffectiveAgentDir(config, configPath, params.targetAgentId);
   } catch {}
 
   return undefined;
@@ -389,16 +390,13 @@ async function isAgentDirClaimedByOther(params: {
     const { config, configPath } = await loadOpenClawConfig({
       configPath: params.targetConfigPath,
     });
-    const entries = config.agents?.list ?? (config.agent ? [config.agent] : []);
+    const entries = listConfiguredAgents(config);
 
     for (const entry of entries) {
-      const entryId = entry.id ?? 'default';
+      const entryId = entry.resolvedId;
       if (entryId === params.targetAgentId) continue;
-      if (!entry.agentDir) continue;
-
-      const resolved = path.isAbsolute(entry.agentDir)
-        ? entry.agentDir
-        : path.resolve(path.dirname(configPath), entry.agentDir);
+      const resolved = resolveEffectiveAgentDir(config, configPath, entryId);
+      if (!resolved) continue;
 
       if (resolved === params.targetAgentDir) return true;
     }
