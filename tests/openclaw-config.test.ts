@@ -16,6 +16,7 @@ import { runCli } from './helpers/run-cli';
 
 const fixtureConfig = path.resolve('tests/fixtures/openclaw-config/source-config.jsonc');
 const fixtureWorkspace = path.resolve('tests/fixtures/source-workspace');
+const includeFixtureConfig = path.resolve('tests/fixtures/openclaw-config/includes/root.json');
 const inspectTarget = path.resolve('tests/tmp/inspect-output.json');
 const importTargetRoot = path.resolve('tests/tmp/config-import-target');
 const importWorkspace = path.join(importTargetRoot, 'workspace-supercoder-imported');
@@ -40,8 +41,10 @@ test('discoverOpenClawConfig resolves explicit configPath', async () => {
 test('discoverOpenClawConfig respects OPENCLAW_CONFIG_PATH env var', async () => {
   const configPath = await writeJsoncFixture('env-var-config.json', '{}');
   const original = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
   try {
     process.env.OPENCLAW_CONFIG_PATH = configPath;
+    process.env.OPENCLAW_STATE_DIR = path.join(parserFixtureRoot, 'ignored-state-dir');
     const discovered = await discoverOpenClawConfig();
     assert.equal(discovered.configPath, configPath);
   } finally {
@@ -49,6 +52,12 @@ test('discoverOpenClawConfig respects OPENCLAW_CONFIG_PATH env var', async () =>
       delete process.env.OPENCLAW_CONFIG_PATH;
     } else {
       process.env.OPENCLAW_CONFIG_PATH = original;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
     }
   }
 });
@@ -82,26 +91,73 @@ test('discoverOpenClawConfig throws when no config found', async () => {
   }
 });
 
-test('discoverOpenClawConfig discovers nearby config from cwd', async () => {
-  const instanceRoot = path.join(parserFixtureRoot, 'nearby-instance');
-  const workspaceRoot = path.join(instanceRoot, 'workspaces', 'workspace-demo');
-  const configPath = path.join(instanceRoot, '.openclaw', 'openclaw.json');
+test('discoverOpenClawConfig resolves config from OPENCLAW_STATE_DIR and falls back to legacy filename', async () => {
+  const stateDir = path.join(parserFixtureRoot, 'state-dir-override');
+  const legacyConfigPath = path.join(stateDir, 'clawdbot.json');
 
-  await rm(instanceRoot, { recursive: true, force: true });
-  await mkdir(workspaceRoot, { recursive: true });
-  await mkdir(path.dirname(configPath), { recursive: true });
-  await writeFile(configPath, '{}', 'utf8');
+  await rm(stateDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(legacyConfigPath, '{}', 'utf8');
 
-  const original = process.env.OPENCLAW_CONFIG_PATH;
+  const originalConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
   try {
     delete process.env.OPENCLAW_CONFIG_PATH;
-    const discovered = await discoverOpenClawConfig({ cwd: workspaceRoot });
-    assert.equal(discovered.configPath, configPath);
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+
+    const discovered = await discoverOpenClawConfig();
+    assert.equal(discovered.configPath, legacyConfigPath);
   } finally {
-    if (original === undefined) {
+    if (originalConfigPath === undefined) {
       delete process.env.OPENCLAW_CONFIG_PATH;
     } else {
-      process.env.OPENCLAW_CONFIG_PATH = original;
+      process.env.OPENCLAW_CONFIG_PATH = originalConfigPath;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
+  }
+});
+
+test('discoverOpenClawConfig falls back to the legacy state dir when canonical state dir is absent', async () => {
+  const fakeHome = path.join(parserFixtureRoot, 'legacy-home');
+  const legacyDir = path.join(fakeHome, '.clawdbot');
+  const legacyConfigPath = path.join(legacyDir, 'clawdbot.json');
+
+  await rm(fakeHome, { recursive: true, force: true });
+  await mkdir(legacyDir, { recursive: true });
+  await writeFile(legacyConfigPath, '{}', 'utf8');
+
+  const originalConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+  const originalHome = process.env.HOME;
+  try {
+    delete process.env.OPENCLAW_CONFIG_PATH;
+    delete process.env.OPENCLAW_STATE_DIR;
+    process.env.HOME = fakeHome;
+
+    const discovered = await discoverOpenClawConfig();
+    assert.equal(discovered.configPath, legacyConfigPath);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.OPENCLAW_CONFIG_PATH;
+    } else {
+      process.env.OPENCLAW_CONFIG_PATH = originalConfigPath;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
+
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
     }
   }
 });
@@ -134,6 +190,20 @@ test('loadOpenClawConfig parses single-agent format', async () => {
   const loaded = await loadOpenClawConfig({ configPath });
   assert.ok(loaded.config.agent, 'agent field should exist');
   assert.equal(loaded.config.agent.name, 'Solo Agent');
+});
+
+test('loadOpenClawConfig parses JSON5 and resolves nested includes relative to each included file', async () => {
+  const loaded = await loadOpenClawConfig({ configPath: includeFixtureConfig });
+  const agent = loaded.config.agents?.list?.find((entry) => entry.id === 'supercoder');
+
+  assert.equal(loaded.config.openclawVersion, '2026.4.9');
+  assert.equal(loaded.config.runtime?.transport, 'stdio');
+  assert.deepEqual(loaded.config.tags, ['base', 'root']);
+  assert.equal(agent?.name, 'Supercoder');
+  assert.equal(agent?.identity?.name, 'Nested Identity');
+  assert.equal(agent?.tools?.profile, 'strict');
+  assert.equal(agent?.workspace, './workspaces/source-workspace');
+  assert.equal(agent?.model?.default, 'openai-codex/gpt-5.4');
 });
 
 // --- resolveAgentFromConfig ---

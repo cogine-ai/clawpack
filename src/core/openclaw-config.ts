@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import stripJsonComments from 'strip-json-comments';
+import JSON5 from 'json5';
 import type { AgentDefinition } from './types';
 
 export interface AgentConfigEntry {
@@ -36,19 +37,18 @@ export interface MinimalOpenClawConfig {
   [key: string]: unknown;
 }
 
+const NEW_STATE_DIRNAME = '.openclaw';
+const LEGACY_STATE_DIRNAMES = ['.clawdbot'];
+const CONFIG_FILENAME = 'openclaw.json';
+const LEGACY_CONFIG_FILENAMES = ['clawdbot.json'];
+const MAX_INCLUDE_DEPTH = 10;
+
 export async function discoverOpenClawConfig(
   params: { configPath?: string; cwd?: string } = {},
 ): Promise<{ configPath: string }> {
-  const homePath = homedir();
   const candidates = params.configPath
-    ? [path.resolve(params.configPath)]
-    : [
-        ...(process.env.OPENCLAW_CONFIG_PATH
-          ? [path.resolve(process.env.OPENCLAW_CONFIG_PATH)]
-          : []),
-        ...discoverNearbyConfigCandidates(params.cwd),
-        ...(homePath ? [path.resolve(homePath, '.openclaw', 'openclaw.json')] : []),
-      ];
+    ? [resolveUserPath(params.configPath)]
+    : resolveDefaultConfigCandidates();
 
   const seen = new Set<string>();
   const deduped = candidates.filter((candidate) => {
@@ -73,9 +73,10 @@ export async function loadOpenClawConfig(params: {
 }): Promise<{ configPath: string; config: MinimalOpenClawConfig }> {
   const discovered = await discoverOpenClawConfig(params);
   const raw = await readFile(discovered.configPath, 'utf8');
+  const parsed = parseConfigFile(raw);
   return {
     configPath: discovered.configPath,
-    config: parseJsonc(raw) as MinimalOpenClawConfig,
+    config: resolveConfigIncludes(parsed, discovered.configPath) as MinimalOpenClawConfig,
   };
 }
 
@@ -268,7 +269,7 @@ export async function upsertPortableAgentDefinition(params: {
 
   try {
     const raw = await readFile(resolvedPath, 'utf8');
-    config = parseJsonc(raw) as MinimalOpenClawConfig;
+    config = parseConfigFile(raw) as MinimalOpenClawConfig;
     existed = true;
   } catch {}
 
@@ -340,9 +341,8 @@ export async function upsertPortableAgentDefinition(params: {
   return { configPath: resolvedPath, created: !existed, updated: existed };
 }
 
-function parseJsonc(value: string): unknown {
-  const withoutComments = stripJsonComments(value);
-  return JSON.parse(withoutComments);
+function parseConfigFile(value: string): unknown {
+  return JSON5.parse(value);
 }
 
 function extractOpenClawVersion(config: MinimalOpenClawConfig): string | undefined {
@@ -386,30 +386,6 @@ function findAgentByWorkspace(
   return basenameMatches.length === 1 ? basenameMatches[0] : undefined;
 }
 
-function discoverNearbyConfigCandidates(cwd?: string): string[] {
-  if (!cwd) return [];
-
-  const resolvedCwd = path.resolve(cwd);
-  const resolvedHome = process.env.HOME ? path.resolve(process.env.HOME) : undefined;
-  const candidates: string[] = [];
-  let current = resolvedCwd;
-
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (resolvedHome && current === resolvedHome) {
-      break;
-    }
-
-    candidates.push(path.join(current, '.openclaw', 'openclaw.json'));
-    candidates.push(path.join(current, 'openclaw.json'));
-
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return candidates;
-}
-
 function resolveConfigWorkspacePath(workspace: string | undefined, configPath?: string): string | undefined {
   if (!workspace) return undefined;
   if (path.isAbsolute(workspace)) return path.resolve(workspace);
@@ -423,4 +399,178 @@ function toTitleCase(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function resolveDefaultConfigCandidates(): string[] {
+  const explicitConfigPath = process.env.OPENCLAW_CONFIG_PATH?.trim();
+  if (explicitConfigPath) {
+    return [resolveUserPath(explicitConfigPath)];
+  }
+
+  const stateDirOverride = process.env.OPENCLAW_STATE_DIR?.trim();
+  if (stateDirOverride) {
+    return configCandidatesForStateDir(resolveUserPath(stateDirOverride));
+  }
+
+  const homePath = homedir();
+  if (!homePath) return [];
+
+  const stateDirs = [
+    path.join(homePath, NEW_STATE_DIRNAME),
+    ...LEGACY_STATE_DIRNAMES.map((dirname) => path.join(homePath, dirname)),
+  ];
+
+  return stateDirs.flatMap((stateDir) => configCandidatesForStateDir(path.resolve(stateDir)));
+}
+
+function configCandidatesForStateDir(stateDir: string): string[] {
+  return [
+    path.join(stateDir, CONFIG_FILENAME),
+    ...LEGACY_CONFIG_FILENAMES.map((filename) => path.join(stateDir, filename)),
+  ];
+}
+
+function resolveUserPath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === '~') {
+    return path.resolve(homedir());
+  }
+
+  if (trimmed.startsWith('~/')) {
+    return path.resolve(homedir(), trimmed.slice(2));
+  }
+
+  return path.resolve(trimmed);
+}
+
+function resolveConfigIncludes(config: unknown, configPath: string): unknown {
+  return new IncludeProcessor(configPath, path.resolve(path.dirname(configPath))).process(config);
+}
+
+class IncludeProcessor {
+  private readonly visited: Set<string>;
+
+  constructor(
+    private readonly basePath: string,
+    private readonly rootDir: string,
+    private readonly depth = 0,
+    visited: Iterable<string> = [],
+  ) {
+    this.visited = new Set([...visited, path.normalize(basePath)]);
+  }
+
+  process(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.process(item));
+    }
+
+    if (!isPlainObject(value)) {
+      return value;
+    }
+
+    if (!('$include' in value)) {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [key, this.process(nestedValue)]),
+      );
+    }
+
+    return this.processIncludedObject(value);
+  }
+
+  private processIncludedObject(value: Record<string, unknown>): unknown {
+    const includeValue = value.$include;
+    const siblingEntries = Object.entries(value).filter(([key]) => key !== '$include');
+    const includedValue = this.resolveIncludeValue(includeValue);
+
+    if (siblingEntries.length === 0) {
+      return includedValue;
+    }
+
+    if (!isPlainObject(includedValue)) {
+      throw new Error('OpenClaw config $include sibling keys require an included object value.');
+    }
+
+    const processedSiblings = Object.fromEntries(
+      siblingEntries.map(([key, nestedValue]) => [key, this.process(nestedValue)]),
+    );
+
+    return deepMerge(includedValue, processedSiblings);
+  }
+
+  private resolveIncludeValue(includeValue: unknown): unknown {
+    if (typeof includeValue === 'string') {
+      return this.loadIncludedFile(includeValue);
+    }
+
+    if (Array.isArray(includeValue)) {
+      return includeValue.reduce<unknown>((merged, item) => {
+        if (typeof item !== 'string') {
+          throw new Error(`OpenClaw config $include items must be strings; received ${typeof item}.`);
+        }
+
+        return deepMerge(merged, this.loadIncludedFile(item));
+      }, {});
+    }
+
+    throw new Error(`OpenClaw config $include must be a string or string[]; received ${typeof includeValue}.`);
+  }
+
+  private loadIncludedFile(includePath: string): unknown {
+    if (this.depth >= MAX_INCLUDE_DEPTH) {
+      throw new Error(`OpenClaw config maximum include depth (${MAX_INCLUDE_DEPTH}) exceeded at ${includePath}.`);
+    }
+
+    const resolvedPath = resolveIncludedFilePath(this.basePath, includePath, this.rootDir);
+    const normalizedPath = path.normalize(resolvedPath);
+
+    if (this.visited.has(normalizedPath)) {
+      throw new Error(`OpenClaw config circular $include detected: ${[...this.visited, normalizedPath].join(' -> ')}`);
+    }
+
+    const nextProcessor = new IncludeProcessor(
+      normalizedPath,
+      this.rootDir,
+      this.depth + 1,
+      this.visited,
+    );
+
+    return nextProcessor.process(parseConfigFile(readFileSync(normalizedPath, 'utf8')));
+  }
+}
+
+function resolveIncludedFilePath(basePath: string, includePath: string, rootDir: string): string {
+  const resolvedPath = path.isAbsolute(includePath)
+    ? path.resolve(includePath)
+    : path.resolve(path.dirname(basePath), includePath);
+
+  if (!isPathInside(rootDir, resolvedPath)) {
+    throw new Error(`OpenClaw config $include path escapes the config root: ${includePath}`);
+  }
+
+  return resolvedPath;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(target: unknown, source: unknown): unknown {
+  if (Array.isArray(target) && Array.isArray(source)) {
+    return [...target, ...source];
+  }
+
+  if (isPlainObject(target) && isPlainObject(source)) {
+    const result: Record<string, unknown> = { ...target };
+    for (const [key, value] of Object.entries(source)) {
+      result[key] = key in result ? deepMerge(result[key], value) : value;
+    }
+    return result;
+  }
+
+  return source;
+}
+
+function isPathInside(rootDir: string, candidatePath: string): boolean {
+  const relative = path.relative(path.resolve(rootDir), path.resolve(candidatePath));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }

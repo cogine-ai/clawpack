@@ -1,0 +1,7 @@
+{
+  openclawVersion: "2026.4.9",
+  runtime: {
+    transport: "stdio",
+  },
+  tags: ["base"],
+}
