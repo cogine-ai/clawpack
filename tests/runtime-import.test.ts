@@ -355,6 +355,55 @@ test('Runtime import blocks when agentDir is claimed by another agent', async ()
   assert.ok(plan.failed.some((f) => f.includes('claimed by another agent')));
 });
 
+test('Runtime import also treats legacy top-level agentDir as occupied', async () => {
+  const dir = 'legacy-dir-claimed';
+  await cleanup(dir);
+  const pkgRoot = path.join(tmpBase, dir, 'fixture.ocpkg');
+  const targetWorkspace = path.join(tmpBase, dir, 'target-ws');
+  const targetAgentDir = path.join(tmpBase, dir, 'shared-agent-dir');
+  const configPath = path.join(tmpBase, dir, 'openclaw.json');
+
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        agent: {
+          id: 'legacy-agent',
+          name: 'Legacy',
+          workspace: '/legacy/workspace',
+          agentDir: targetAgentDir,
+        },
+        agents: {
+          list: [{ id: 'main', default: true, workspace: '/current/workspace' }],
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const pkg = await buildRuntimeTestPackage(pkgRoot, {
+    runtimeFiles: {
+      'settings.json': '{}',
+    },
+    sourceAgentDir: '/source/agent-dir',
+    sourceWorkspacePath: '/source/workspace',
+  });
+
+  const plan = await planImport({
+    pkg,
+    targetWorkspacePath: targetWorkspace,
+    targetAgentId: 'imported-agent',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  });
+
+  assert.equal(plan.canProceed, false);
+  assert.ok(plan.failed.some((f) => f.includes('claimed by another agent')));
+});
+
 test('Package with runtime=none does not trigger runtime import', async () => {
   const dir = 'no-runtime';
   await cleanup(dir);

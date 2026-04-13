@@ -186,8 +186,6 @@ async function validateRuntimeLayer(
             `OpenClaw config agent ${params.agentId} is missing agentDir field.`,
           );
         }
-      } else {
-        report.failed.push(`OpenClaw config agent ${params.agentId} is missing agentDir field.`);
       }
     } catch {
       report.warnings.push('Could not validate agentDir against OpenClaw config.');

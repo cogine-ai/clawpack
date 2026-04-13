@@ -400,6 +400,19 @@ async function isAgentDirClaimedByOther(params: {
 
       if (resolved === params.targetAgentDir) return true;
     }
+
+    if (config.agents?.list?.length && config.agent?.agentDir) {
+      const legacyEntryId = config.agent.id ?? 'default';
+      if (legacyEntryId !== params.targetAgentId) {
+        const resolvedLegacyAgentDir = path.isAbsolute(config.agent.agentDir)
+          ? path.resolve(config.agent.agentDir)
+          : path.resolve(path.dirname(configPath), config.agent.agentDir);
+
+        if (resolvedLegacyAgentDir === params.targetAgentDir) {
+          return true;
+        }
+      }
+    }
   } catch {}
 
   return false;
