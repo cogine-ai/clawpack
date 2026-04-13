@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI help text updated to describe runtime modes, safety boundaries, and default behavior (#40)
 - CLI version aligned with package version (#40)
 - README updated with runtime layer documentation: mode descriptions, exclusion rules, path rewriting, import behavior, and package structure (#40)
+
+### Fixed
+
 - OpenClaw config loading now matches current OpenClaw semantics for JSON5 parsing, `$include` resolution, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR`, and legacy `clawdbot.json` fallback paths (#53)
 
 ## [0.2.0] - 2026-03-19
