@@ -9,10 +9,17 @@ export const REQUIRED_WORKSPACE_FILES = [
   'IDENTITY.md',
   'USER.md',
   'TOOLS.md',
-  'MEMORY.md',
 ] as const;
 
-export const BOOTSTRAP_FILES = new Set([
+export const OPTIONAL_WORKSPACE_FILES = [
+  'BOOT.md',
+  'BOOTSTRAP.md',
+  'HEARTBEAT.md',
+  'MEMORY.md',
+  'memory.md',
+] as const;
+
+export const OPENCLAW_BOOTSTRAP_FILES = new Set([
   'AGENTS.md',
   'SOUL.md',
   'TOOLS.md',
@@ -39,7 +46,7 @@ export interface ExclusionPattern {
 export const EXCLUDED_PATTERNS: ExclusionPattern[] = [
   {
     test: (relativePath) => /^memory\/.*\.md$/.test(relativePath),
-    reason: 'Excluded by daily memory policy',
+    reason: 'Excluded by clawpack default policy: daily memory logs are not exported by default',
   },
 ];
 

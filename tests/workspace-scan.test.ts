@@ -17,6 +17,10 @@ test('scanWorkspace includes all files and excludes daily memory by default', as
     result.excludedFiles.map((file) => file.relativePath),
     ['memory/2026-03-16.md'],
   );
+  assert.match(
+    result.excludedFiles[0]?.reason ?? '',
+    /clawpack.*policy/i,
+  );
   for (const name of ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']) {
     const file = result.includedFiles.find((f) => f.relativePath === name);
     assert.ok(file, `${name} should be in includedFiles`);
@@ -113,6 +117,22 @@ test('scanWorkspace handles optional files BOOTSTRAP.md and HEARTBEAT.md when pr
     assert.equal(bootstrap.isBootstrap, true, 'BOOTSTRAP.md should be bootstrap');
     assert.ok(heartbeat, 'HEARTBEAT.md should be in includedFiles');
     assert.equal(heartbeat.isBootstrap, true, 'HEARTBEAT.md should be bootstrap');
+  } finally {
+    await cleanupTempWorkspace(basePath);
+  }
+});
+
+test('scanWorkspace includes BOOT.md but does not mark it as a bootstrap file', async () => {
+  const basePath = path.resolve('tests/tmp/ws-boot-file');
+  await createTempWorkspace(basePath, {
+    extraFiles: { 'BOOT.md': '# BOOT\n' },
+  });
+
+  try {
+    const result = await scanWorkspace(basePath);
+    const boot = result.includedFiles.find((f) => f.relativePath === 'BOOT.md');
+    assert.ok(boot, 'BOOT.md should be included');
+    assert.equal(boot.isBootstrap, false, 'BOOT.md should not be treated as a bootstrap file');
   } finally {
     await cleanupTempWorkspace(basePath);
   }
