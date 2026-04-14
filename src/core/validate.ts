@@ -3,7 +3,12 @@ import { pathExists } from '../utils/fs';
 import { readJsonFile } from '../utils/json';
 import { checksumFile } from './checksums';
 import { REQUIRED_WORKSPACE_FILES } from './constants';
-import { loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
+import {
+  loadOpenClawConfig,
+  resolveAgentFromConfig,
+  resolveEffectiveAgentDir,
+  resolveEffectiveWorkspace,
+} from './openclaw-config';
 import type { ValidationReport } from './types';
 
 const AUTH_FILES = ['auth.json', 'auth-profiles.json'];
@@ -97,11 +102,7 @@ export async function validateImportedWorkspace(params: {
         );
       } else {
         report.passed.push(`OpenClaw config agent present: ${params.agentId} (${configPath})`);
-        const resolvedConfigWorkspace = resolved.agent.workspace
-          ? path.isAbsolute(resolved.agent.workspace)
-            ? path.resolve(resolved.agent.workspace)
-            : path.resolve(path.dirname(configPath), resolved.agent.workspace)
-          : undefined;
+        const resolvedConfigWorkspace = resolveEffectiveWorkspace(config, configPath, params.agentId);
         if (!resolvedConfigWorkspace) {
           report.failed.push(
             `OpenClaw config agent workspace missing: ${params.agentId} (${configPath})`,
@@ -172,20 +173,19 @@ async function validateRuntimeLayer(
         configPath: params.targetConfigPath,
       });
       const resolved = resolveAgentFromConfig(config, params.agentId);
-      if (resolved?.agent.agentDir) {
-        const configAgentDir = path.isAbsolute(resolved.agent.agentDir)
-          ? resolved.agent.agentDir
-          : path.resolve(path.dirname(configPath), resolved.agent.agentDir);
-
+      if (resolved) {
+        const configAgentDir = resolveEffectiveAgentDir(config, configPath, params.agentId);
         if (configAgentDir === targetAgentDir) {
           report.passed.push(`OpenClaw config agentDir matches target: ${configAgentDir}`);
-        } else {
+        } else if (configAgentDir) {
           report.failed.push(
             `OpenClaw config agentDir mismatch: expected ${targetAgentDir}, got ${configAgentDir}`,
           );
+        } else {
+          report.failed.push(
+            `OpenClaw config agent ${params.agentId} is missing agentDir field.`,
+          );
         }
-      } else {
-        report.failed.push(`OpenClaw config agent ${params.agentId} is missing agentDir field.`);
       }
     } catch {
       report.warnings.push('Could not validate agentDir against OpenClaw config.');

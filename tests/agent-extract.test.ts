@@ -101,3 +101,36 @@ test('uses specified agentId parameter when provided', async () => {
   assert.equal(result.agent.suggestedName, 'Beta');
   assert.equal(result.agent.model?.default, 'gpt-5');
 });
+
+test('extracts effective agent config from agents.defaults + agents.list workspace semantics', async () => {
+  const configPath = path.join(tmpRoot, 'agent-extract-defaults.json');
+  await mkdir(tmpRoot, { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      identity: { name: 'Shared Identity' },
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          model: { default: 'gpt-5.4-mini' },
+          skills: ['brainstorming'],
+        },
+        list: [{ id: 'main', default: true }, { id: 'nested-agent', name: 'Nested Agent' }],
+      },
+    }),
+    'utf8',
+  );
+
+  const nestedWorkspace = path.join(tmpRoot, 'workspaces', 'nested-agent', 'child');
+  await mkdir(nestedWorkspace, { recursive: true });
+
+  const result = await extractAgentDefinition(nestedWorkspace, {
+    configPath,
+  });
+
+  assert.equal(result.agent.suggestedId, 'nested-agent');
+  assert.equal(result.agent.suggestedName, 'Nested Agent');
+  assert.equal(result.agent.identity.name, 'Shared Identity');
+  assert.equal(result.agent.model?.default, 'gpt-5.4-mini');
+  assert.deepEqual(result.agent.skills, ['brainstorming']);
+});

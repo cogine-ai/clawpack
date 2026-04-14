@@ -268,6 +268,25 @@ test('resolveAgentFromConfig falls back to first list entry when no default', ()
   assert.equal(result.resolvedId, 'only');
 });
 
+test('resolveAgentFromConfig prefers agents.list over legacy top-level agent when both exist', () => {
+  const config: MinimalOpenClawConfig = {
+    agent: { id: 'legacy', name: 'Legacy', workspace: '/legacy-workspace' },
+    agents: {
+      list: [
+        { id: 'alpha', name: 'Alpha', workspace: '/tmp/alpha' },
+        { id: 'beta', name: 'Beta', workspace: '/tmp/beta', default: true },
+      ],
+    },
+  };
+
+  const selectedDefault = resolveAgentFromConfig(config);
+  assert.ok(selectedDefault);
+  assert.equal(selectedDefault.resolvedId, 'beta');
+
+  const selectedLegacy = resolveAgentFromConfig(config, 'legacy');
+  assert.equal(selectedLegacy, undefined);
+});
+
 test('resolveAgentDir matches the workspace agent when agentId is omitted', async () => {
   const configPath = await writeJsoncFixture(
     'resolve-agent-dir-by-workspace.json',
@@ -354,6 +373,66 @@ test('resolveAgentDir prefers exact workspace path over basename-only match', as
   );
 });
 
+test('resolveAgentDir resolves nested workspace matches using the longest configured workspace root', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-longest-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          agentDir: './agents',
+        },
+        list: [
+          {
+            id: 'main',
+            default: true,
+          },
+          {
+            id: 'docs',
+            workspace: './workspaces/projects/docs',
+          },
+        ],
+      },
+    }),
+  );
+
+  const nestedDocsWorkspace = path.resolve(path.dirname(configPath), 'workspaces/projects/docs/subtree');
+  const resolved = await resolveAgentDir({
+    configPath,
+    workspacePath: nestedDocsWorkspace,
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(configPath), 'agents/docs/agent'),
+  );
+});
+
+test('resolveAgentDir derives agentDir from agents.defaults for non-default agents', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-default-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          agentDir: './agent-data',
+        },
+        list: [{ id: 'main', default: true }, { id: 'nested-agent' }],
+      },
+    }),
+  );
+
+  const resolved = await resolveAgentDir({
+    configPath,
+    agentId: 'nested-agent',
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(configPath), 'agent-data/nested-agent/agent'),
+  );
+});
+
 // --- hasAgentInConfig ---
 
 test('hasAgentInConfig checks both single and list formats', () => {
@@ -387,6 +466,71 @@ test('extractPortableAgentDefinition extracts from agents.list fixture', async (
   assert.equal(portable.agent.model?.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
   assert.equal(portable.fieldClassification['agent.secrets'], 'excluded');
+});
+
+test('extractPortableAgentDefinition resolves agents.defaults workspace roots and portable defaults', async () => {
+  const configPath = await writeJsoncFixture(
+    'extract-defaults-workspace.json',
+    JSON.stringify({
+      identity: { name: 'Shared Identity' },
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          model: { default: 'openai/gpt-5.4-mini' },
+          skills: ['brainstorming'],
+        },
+        list: [
+          { id: 'main', default: true, name: 'Main Agent' },
+          { id: 'nested-agent', name: 'Nested Agent' },
+        ],
+      },
+    }),
+  );
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  const workspacePath = path.resolve(path.dirname(configPath), 'workspaces/nested-agent');
+  const portable = extractPortableAgentDefinition({
+    config: loaded.config,
+    configPath,
+    workspacePath,
+  });
+
+  assert.equal(portable.agent.suggestedId, 'nested-agent');
+  assert.equal(portable.agent.suggestedName, 'Nested Agent');
+  assert.equal(portable.agent.identity.name, 'Shared Identity');
+  assert.equal(portable.agent.model?.default, 'openai/gpt-5.4-mini');
+  assert.deepEqual(portable.agent.skills, ['brainstorming']);
+  assert.ok(
+    portable.notes.some((note) => note.includes('defaults') && note.includes('agent.model')),
+  );
+});
+
+test('extractPortableAgentDefinition avoids basename collisions by preferring the longest workspace root match', async () => {
+  const configPath = await writeJsoncFixture(
+    'extract-longest-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+        },
+        list: [
+          { id: 'main', default: true },
+          { id: 'docs', workspace: './workspaces/projects/docs' },
+          { id: 'other-docs', workspace: './elsewhere/docs' },
+        ],
+      },
+    }),
+  );
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  const nestedWorkspace = path.resolve(path.dirname(configPath), 'workspaces/projects/docs/child');
+  const portable = extractPortableAgentDefinition({
+    config: loaded.config,
+    configPath,
+    workspacePath: nestedWorkspace,
+  });
+
+  assert.equal(portable.agent.suggestedId, 'docs');
 });
 
 test('extractPortableAgentDefinition extracts from single-agent config', async () => {
@@ -612,7 +756,7 @@ test('upsertPortableAgentDefinition converts single-agent to multi-agent on new 
   assert.equal(written.agents.list[1].id, 'supercoder-imported');
 });
 
-test('upsertPortableAgentDefinition updates single-agent in place when same id', async () => {
+test('upsertPortableAgentDefinition converts legacy single-agent config to agents.list even when updating the same id', async () => {
   await rm(importTargetRoot, { recursive: true, force: true });
   await mkdir(importTargetRoot, { recursive: true });
   await writeFile(
@@ -629,9 +773,12 @@ test('upsertPortableAgentDefinition updates single-agent in place when same id',
   });
 
   const written = JSON.parse(await readFile(importConfig, 'utf8'));
-  assert.ok(written.agent, 'should keep single-agent format');
-  assert.equal(written.agent.name, 'Supercoder Imported');
-  assert.equal(written.agent.workspace, importWorkspace);
+  assert.equal(written.agent, undefined, 'legacy top-level agent should be normalized away');
+  assert.ok(Array.isArray(written.agents?.list));
+  assert.equal(written.agents.list.length, 1);
+  assert.equal(written.agents.list[0].id, 'supercoder-imported');
+  assert.equal(written.agents.list[0].name, 'Supercoder Imported');
+  assert.equal(written.agents.list[0].workspace, importWorkspace);
 });
 
 test('upsertPortableAgentDefinition refuses duplicate without --force', async () => {
