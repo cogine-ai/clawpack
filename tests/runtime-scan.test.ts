@@ -25,32 +25,38 @@ test('scanRuntime mode=none returns empty results', async () => {
   assert.equal(result.excludedFiles.length, 0);
 });
 
-test('scanRuntime mode=default includes settings.json and AGENTS.md', async () => {
+test('scanRuntime mode=default includes grounded models.json only', async () => {
   const agentDir = await setupAgentDir({
     'AGENTS.md': '# Agents',
     'settings.json': '{}',
+    'models.json': JSON.stringify({ models: [{ id: 'gpt-5', apiKey: 'sk-xxx' }] }),
     'auth.json': '{ "token": "secret" }',
   });
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.equal(result.mode, 'default');
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'AGENTS.md'));
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'settings.json'));
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'models.json'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'AGENTS.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'settings.json'));
+  assert.deepEqual(result.artifacts.grounded, ['models.json']);
+  assert.ok(result.artifacts.inferred.includes('settings.json'));
   assert.ok(result.excludedFiles.some(f => f.relativePath === 'auth.json'));
 });
 
-test('scanRuntime mode=default includes prompts/** and themes/**', async () => {
+test('scanRuntime mode=default excludes inferred prompts/** and themes/**', async () => {
   const agentDir = await setupAgentDir({
     'prompts/system.md': '# System prompt',
     'prompts/user.md': '# User prompt',
     'themes/dark.json': '{}',
   });
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/system.md'));
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/user.md'));
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'prompts/system.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'prompts/user.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
+  assert.deepEqual(result.artifacts.inferred, ['prompts/system.md', 'prompts/user.md', 'themes/dark.json']);
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'prompts/system.md' && /inferred|full mode/i.test(f.reason)));
 });
 
-test('scanRuntime mode=default excludes skills/** and extensions/** with explicit reasons', async () => {
+test('scanRuntime mode=default excludes unsupported skills/** and extensions/** with explicit reasons', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
     'skills/my-skill/SKILL.md': '# Skill',
@@ -59,19 +65,26 @@ test('scanRuntime mode=default excludes skills/** and extensions/** with explici
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.ok(!result.includedFiles.some(f => f.relativePath.startsWith('skills/')));
   assert.ok(!result.includedFiles.some(f => f.relativePath.startsWith('extensions/')));
-  assert.ok(result.excludedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md' && /full mode/i.test(f.reason)));
-  assert.ok(result.excludedFiles.some(f => f.relativePath === 'extensions/ext1/package.json' && /full mode/i.test(f.reason)));
+  assert.deepEqual(result.artifacts.unsupported, ['extensions/ext1/package.json', 'skills/my-skill/SKILL.md']);
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md' && /unsupported/i.test(f.reason)));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'extensions/ext1/package.json' && /unsupported/i.test(f.reason)));
 });
 
-test('scanRuntime mode=full includes skills/** and extensions/**', async () => {
+test('scanRuntime mode=full includes inferred settings/prompts/themes but still excludes unsupported skills/extensions', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
+    'prompts/system.md': '# System',
+    'themes/dark.json': '{}',
     'skills/my-skill/SKILL.md': '# Skill',
     'extensions/ext1/package.json': '{}',
   });
   const result = await scanRuntime({ mode: 'full', agentDir, workspacePath: '/tmp/ws' });
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md'));
-  assert.ok(result.includedFiles.some(f => f.relativePath === 'extensions/ext1/package.json'));
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'settings.json'));
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/system.md'));
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'themes/dark.json'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md'));
+  assert.ok(!result.includedFiles.some(f => f.relativePath === 'extensions/ext1/package.json'));
+  assert.ok(result.excludedFiles.some(f => f.relativePath === 'skills/my-skill/SKILL.md' && /unsupported/i.test(f.reason)));
 });
 
 test('scanRuntime always excludes auth-profiles.json and sessions/**', async () => {
@@ -86,7 +99,7 @@ test('scanRuntime always excludes auth-profiles.json and sessions/**', async () 
   assert.ok(result.excludedFiles.some(f => f.relativePath === 'auth-profiles.json'));
 });
 
-test('scanRuntime sanitizes models.json and includes sanitized version', async () => {
+test('scanRuntime sanitizes grounded models.json and includes sanitized version in default mode', async () => {
   const agentDir = await setupAgentDir({
     'models.json': JSON.stringify({
       models: [{ id: 'gpt-4', provider: 'openai', apiKey: 'sk-xxx', maxTokens: 4096 }],
@@ -94,6 +107,7 @@ test('scanRuntime sanitizes models.json and includes sanitized version', async (
   });
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.ok(result.sanitizedModels);
+  assert.ok(result.includedFiles.some(f => f.relativePath === 'models.json'));
   assert.equal((result.sanitizedModels as any).models[0].apiKey, undefined);
   assert.equal((result.sanitizedModels as any).models[0].maxTokens, 4096);
 });
@@ -118,11 +132,11 @@ test('scanRuntime records excluded models.json when parsing fails', async () => 
   assert.ok(result.excludedFiles.some(f => f.relativePath === 'models.json' && /parse/i.test(f.reason)));
 });
 
-test('scanRuntime analyzes settings.json paths', async () => {
+test('scanRuntime analyzes settings.json paths when inferred files are included in full mode', async () => {
   const agentDir = await setupAgentDir({
     'settings.json': JSON.stringify({ 'data.path': '/usr/local/data' }),
   });
-  const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+  const result = await scanRuntime({ mode: 'full', agentDir, workspacePath: '/tmp/ws' });
   assert.ok(result.settingsAnalysis);
   assert.equal(result.settingsAnalysis!.pathRefs.length, 1);
 });
@@ -171,7 +185,7 @@ test('scanRuntime reports directory read failures in warnings', async () => {
   await chmod(blockedDir, 0o000);
 
   try {
-    const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
+    const result = await scanRuntime({ mode: 'full', agentDir, workspacePath: '/tmp/ws' });
 
     assert.ok(result.includedFiles.some(f => f.relativePath === 'prompts/keep.md'));
     assert.ok(result.warnings.some(w => /blocked/.test(w)));
@@ -195,6 +209,7 @@ test('scanRuntime returns included files in deterministic sorted order', async (
   const agentDir = await setupAgentDir({
     'settings.json': '{}',
     'AGENTS.md': '# Agents',
+    'models.json': JSON.stringify({ models: [{ id: 'gpt-5', apiKey: 'sk-xxx' }] }),
     'prompts/z-last.md': '# Z',
     'prompts/a-first.md': '# A',
   });
@@ -203,7 +218,7 @@ test('scanRuntime returns included files in deterministic sorted order', async (
 
   assert.deepEqual(
     result.includedFiles.map(f => f.relativePath),
-    ['AGENTS.md', 'prompts/a-first.md', 'prompts/z-last.md', 'settings.json'],
+    ['models.json'],
   );
 });
 

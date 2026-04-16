@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {
+  RuntimeArtifactBuckets,
   RuntimeManifest,
   RuntimeMode,
   RuntimeScanResult,
@@ -17,29 +18,51 @@ test('RuntimeManifest structure is valid', () => {
   const manifest: RuntimeManifest = {
     mode: 'default',
     agentDir: '/path/to/agentDir',
-    includedFiles: ['AGENTS.md', 'settings.json'],
+    includedFiles: ['models.json'],
     excludedFiles: [{ relativePath: 'auth.json', reason: 'Always excluded: secrets' }],
+    artifacts: {
+      grounded: ['models.json'],
+      inferred: ['settings.json'],
+      unsupported: ['skills/demo/SKILL.md'],
+    },
     warnings: [],
-    modelsSanitized: false,
+    modelsSanitized: true,
     modelsSkipped: false,
     settingsAnalysisIncluded: false,
   };
   assert.equal(manifest.mode, 'default');
-  assert.equal(manifest.includedFiles.length, 2);
+  assert.equal(manifest.includedFiles.length, 1);
+  assert.equal(manifest.artifacts.inferred.length, 1);
 });
 
 test('RuntimeScanResult structure is valid', () => {
   const result: RuntimeScanResult = {
     mode: 'default',
     agentDir: '/path/to/agentDir',
-    includedFiles: [{ relativePath: 'settings.json', absolutePath: '/abs/settings.json' }],
+    includedFiles: [{ relativePath: 'models.json', absolutePath: '/abs/models.json' }],
     excludedFiles: [{ relativePath: 'auth.json', reason: 'Always excluded: secrets' }],
+    artifacts: {
+      grounded: ['models.json'],
+      inferred: ['settings.json'],
+      unsupported: ['extensions/ext/package.json'],
+    },
     warnings: [],
-    sanitizedModels: undefined,
+    sanitizedModels: { models: [{ id: 'gpt-5' }] },
     settingsAnalysis: undefined,
   };
   assert.equal(result.mode, 'default');
   assert.equal(result.includedFiles.length, 1);
+  assert.equal(result.artifacts.grounded[0], 'models.json');
+});
+
+test('RuntimeArtifactBuckets groups runtime evidence levels', () => {
+  const buckets: RuntimeArtifactBuckets = {
+    grounded: ['models.json'],
+    inferred: ['settings.json'],
+    unsupported: ['skills/demo/SKILL.md'],
+  };
+  assert.equal(buckets.grounded.length, 1);
+  assert.equal(buckets.unsupported.length, 1);
 });
 
 test('SettingsAnalysis structure is valid', () => {

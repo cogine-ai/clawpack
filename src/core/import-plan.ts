@@ -338,7 +338,7 @@ async function planRuntimeImport(params: {
 
   if (runtimeFiles.length > 0) {
     nextSteps.push(
-      'Review runtime files (settings.json, prompts, themes) in the target agentDir after import.',
+      'Review imported runtime files in the target agentDir after import, especially any inferred convenience files.',
     );
   }
 

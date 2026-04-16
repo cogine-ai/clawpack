@@ -273,11 +273,18 @@ export interface ValidationReport {
 
 export type RuntimeMode = 'none' | 'default' | 'full';
 
+export interface RuntimeArtifactBuckets {
+  grounded: string[];
+  inferred: string[];
+  unsupported: string[];
+}
+
 export interface RuntimeScanResult {
   mode: RuntimeMode;
   agentDir: string;
   includedFiles: Array<{ relativePath: string; absolutePath: string }>;
   excludedFiles: ExcludedWorkspaceFile[];
+  artifacts: RuntimeArtifactBuckets;
   warnings: string[];
   sanitizedModels: Record<string, unknown> | undefined;
   settingsAnalysis: SettingsAnalysis | undefined;
@@ -288,6 +295,7 @@ export interface RuntimeManifest {
   agentDir: string;
   includedFiles: string[];
   excludedFiles: ExcludedWorkspaceFile[];
+  artifacts: RuntimeArtifactBuckets;
   warnings: string[];
   modelsSanitized: boolean;
   modelsSkipped: boolean;

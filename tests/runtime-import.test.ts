@@ -54,6 +54,28 @@ test('Runtime import writes files under target agentDir', async () => {
   assert.ok(await pathExists(path.join(targetAgentDir, 'prompts/default.md')));
 });
 
+test('Runtime package test factory classifies manifest artifacts by evidence level', async () => {
+  const dir = 'factory-artifacts';
+  await cleanup(dir);
+  const pkgRoot = path.join(tmpBase, dir, 'fixture.ocpkg');
+
+  const pkg = await buildRuntimeTestPackage(pkgRoot, {
+    runtimeFiles: {
+      'models.json': JSON.stringify({ models: [{ id: 'gpt-5' }] }),
+      'settings.json': '{}',
+      'themes/dark.json': '{}',
+      'skills/demo/SKILL.md': '# demo\n',
+      'extensions/ext/package.json': '{}',
+    },
+    sourceAgentDir: '/source/agent-dir',
+    sourceWorkspacePath: '/source/workspace',
+  });
+
+  assert.deepEqual(pkg.runtimeManifest?.artifacts.grounded, ['models.json']);
+  assert.deepEqual(pkg.runtimeManifest?.artifacts.inferred, ['settings.json', 'themes/dark.json']);
+  assert.deepEqual(pkg.runtimeManifest?.artifacts.unsupported, ['extensions/ext/package.json', 'skills/demo/SKILL.md']);
+});
+
 test('Runtime import blocks on existing files without --force', async () => {
   const dir = 'collision-block';
   await cleanup(dir);

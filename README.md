@@ -93,19 +93,33 @@ That means Clawpacker records detected skill references (using backtick-quoted r
 
 ### Runtime layer (optional)
 
-In addition to workspace files, OpenClaw agents often have runtime configuration stored in a separate **agentDir** — things like `settings.json`, prompt templates, themes, and model definitions. Clawpacker can optionally package a portable slice of this runtime layer alongside the workspace.
+In addition to workspace files, OpenClaw agents often have runtime configuration stored in a separate **agentDir**. Clawpacker can optionally package a narrow, labeled slice of this runtime layer alongside the workspace.
 
 This is an **optional portability convenience**, not a full backup of the agent runtime directory.
+
+#### Runtime evidence levels
+
+Clawpacker classifies detected runtime files by evidence level:
+
+| Evidence | Meaning | Current files |
+|----------|---------|---------------|
+| `grounded` | Source-backed and aligned with the current runtime contract | `models.json` |
+| `inferred` | Useful convenience files, but not a strong current OpenClaw portability contract | `settings.json`, `prompts/**`, `themes/**` |
+| `unsupported` | Not currently treated as canonical portable per-agent artifacts | `skills/**`, `extensions/**` |
+
+`inspect` and `export` report these buckets explicitly so the runtime layer does not overstate what is officially portable.
 
 #### The three modes
 
 | Mode | What gets packaged | When to use |
 |------|-------------------|-------------|
 | `none` | Nothing from agentDir | You only need workspace files |
-| `default` | `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, `models.json` | Most agent transfers (recommended) |
-| `full` | Everything in `default`, plus `skills/**` and `extensions/**` | When the target instance needs locally installed skills or extensions |
+| `default` | Only `grounded` runtime artifacts | Honest default for portability checks and packaging |
+| `full` | `grounded` plus `inferred` runtime artifacts | When you intentionally want extra convenience files and understand they are not an official capability contract |
 
 Use `--runtime-mode <mode>` on `inspect` and `export`. When omitted, `inspect` defaults to `default`; `export` skips the runtime layer unless the flag is explicitly provided.
+
+`full` does **not** include `skills/**` or `extensions/**`. Those are reported as `unsupported`, not packaged.
 
 #### What is always excluded
 
@@ -131,6 +145,8 @@ If sanitization removes everything useful, the file is excluded entirely and a w
 
 #### settings.json path analysis
 
+`settings.json` is an `inferred` artifact, so this analysis runs only when `settings.json` is actually included, for example with `--runtime-mode full`.
+
 Clawpacker analyzes path-like values in `settings.json` and classifies them:
 
 | Classification | Meaning | On import |
@@ -149,7 +165,7 @@ When importing a package that includes a runtime layer:
 - If no target agentDir can be resolved, import **blocks** and tells you what is needed.
 - If runtime files already exist at the target agentDir, import **blocks** unless `--force` is passed. Only allowlisted runtime files are overwritten — auth and session files are never written.
 - If a target OpenClaw config is provided, the agent entry is upserted with the agentDir path.
-- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths.
+- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths when `settings.json` is present in the package.
 
 Use `--dry-run` to preview the full import plan (including runtime file list, path rewrites, and collision detection) before committing.
 
@@ -246,7 +262,7 @@ What `inspect` tells you:
 - whether a portable agent definition could be derived
 - which fields are portable vs import-time inputs
 - which skills were detected
-- runtime layer contents (when `--runtime-mode` is `default` or `full`)
+- runtime layer contents grouped as `grounded`, `inferred`, and `unsupported` (when `--runtime-mode` is `default` or `full`)
 - warnings you should expect on export/import
 
 ### 2) Export a package
@@ -295,7 +311,10 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
   "manifestPath": ".../example-supercoder.ocpkg/manifest.json",
   "fileCount": 12,
   "runtimeMode": "default",
-  "runtimeFiles": ["AGENTS.md", "settings.json", "prompts/system.md"]
+  "runtimeFiles": ["models.json"],
+  "runtimeGroundedFiles": ["models.json"],
+  "runtimeInferredFiles": ["settings.json", "prompts/system.md"],
+  "runtimeUnsupportedFiles": ["skills/review/SKILL.md"]
 }
 ```
 
@@ -484,23 +503,19 @@ supercoder-template.ocpkg/
     manifest.json
     checksums.json
     path-rewrites.json
-    settings-analysis.json  # present when settings.json was included
+    settings-analysis.json  # present when inferred settings.json was included
     files/
-      AGENTS.md
-      settings.json
       models.json           # sanitized — no API keys or secrets
-      prompts/
+      settings.json         # present only when inferred files are included
+      prompts/              # present only when inferred files are included
         system.md
-      themes/
+      themes/               # present only when inferred files are included
         dark.json
-      skills/               # present only in full mode
-        my-skill/
-          SKILL.md
 ```
 
 The `workspace/` directory mirrors the source workspace structure. All non-excluded files are included, so the contents vary depending on what lives in the source workspace.
 
-The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, and which files were included or excluded. The `files/` subdirectory contains the actual runtime files.
+The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, the `grounded` / `inferred` / `unsupported` classification, and which files were included or excluded. The `files/` subdirectory contains only the runtime files that the selected mode is allowed to package.
 
 Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
@@ -517,16 +532,16 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
 Near-term likely improvements:
 
-- richer import guidance when models or skills are missing
+- richer import guidance when models or inferred runtime files are missing
 - better package compatibility/version negotiation
 
 Current limitations to be aware of:
 
 - package format should still be treated as early-stage (currently v2)
-- skills are detected and optionally bundled via `--runtime-mode full`, but not auto-installed on import
+- skills are detected in workspace content, but runtime `skills/**` and `extensions/**` are currently classified as unsupported and are not bundled
 - `--force` uses file-level replacement semantics — only files present in the package are overwritten; unrelated files in the target workspace are preserved
 - OpenClaw config support is minimal by design
-- runtime layer path rewriting only handles `settings.json` — other config files with embedded paths require manual update
+- runtime layer path rewriting only handles inferred `settings.json` — other config files with embedded paths require manual update
 
 ## Development
 

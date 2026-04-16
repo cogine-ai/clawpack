@@ -13,6 +13,7 @@ test('inspect --runtime-mode default shows runtime section in human output', asy
   const agentDir = path.join(tmpBase, 'inspect-agentdir');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
 
   const configPath = path.join(tmpBase, 'inspect-config.json');
@@ -36,7 +37,11 @@ test('inspect --runtime-mode default shows runtime section in human output', asy
     '--runtime-mode', 'default',
   ]);
   assert.match(stdout, /Runtime mode: default/);
+  assert.match(stdout, /Runtime grounded files/i);
+  assert.match(stdout, /models\.json/);
+  assert.match(stdout, /Runtime inferred files/i);
   assert.match(stdout, /settings\.json/);
+  assert.doesNotMatch(stdout, /Runtime grounded files .*AGENTS\.md/i);
 });
 
 test('inspect --runtime-mode default --json includes runtime data', async () => {
@@ -44,6 +49,7 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
   const agentDir = path.join(tmpBase, 'inspect-agentdir-json');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
 
   const configPath = path.join(tmpBase, 'inspect-config-json.json');
@@ -70,6 +76,8 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
   const report = JSON.parse(stdout);
   assert.equal(report.runtime.mode, 'default');
   assert.ok(Array.isArray(report.runtime.includedFiles));
+  assert.ok(Array.isArray(report.runtime.artifacts.grounded));
+  assert.ok(report.runtime.artifacts.inferred.includes('settings.json'));
 });
 
 test('inspect without --runtime-mode defaults to resolved runtime mode output', async () => {
@@ -99,11 +107,12 @@ test('inspect --runtime-mode default warns when agentDir unresolvable', async ()
   assert.match(stdout, /[Cc]ould not resolve|agentDir/);
 });
 
-test('export --runtime-mode default writes runtime subtree in package', async () => {
+test('export --runtime-mode default writes only grounded runtime files in package', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws'));
   const agentDir = path.join(tmpBase, 'export-agentdir');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
   await mkdir(path.join(agentDir, 'prompts'), { recursive: true });
   await writeFile(path.join(agentDir, 'prompts', 'system.md'), '# System', 'utf8');
@@ -135,7 +144,9 @@ test('export --runtime-mode default writes runtime subtree in package', async ()
 
   assert.match(stdout, /Export complete/);
   assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'models.json')));
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'prompts', 'system.md')), false);
 });
 
 test('export --runtime-mode none does not write runtime subtree', async () => {
@@ -159,6 +170,7 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   const agentDir = path.join(tmpBase, 'export-agentdir-json');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
 
   const configPath = path.join(tmpBase, 'export-config-json.json');
@@ -190,6 +202,8 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   const report = JSON.parse(stdout);
   assert.equal(report.status, 'ok');
   assert.equal(report.runtimeMode, 'default');
+  assert.ok(report.runtimeGroundedFiles.includes('models.json'));
+  assert.ok(report.runtimeInferredFiles.includes('settings.json'));
 });
 
 test('export --archive --json reports an existing manifestPath', async () => {
@@ -213,12 +227,15 @@ test('export --archive --json reports an existing manifestPath', async () => {
   assert.equal(existsSync(report.manifestPath), true);
 });
 
-test('export --runtime-mode full includes skills and extensions in runtime subtree', async () => {
+test('export --runtime-mode full includes inferred files but still excludes unsupported skills and extensions', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-ws-full'));
   const agentDir = path.join(tmpBase, 'export-agentdir-full');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
   await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+  await mkdir(path.join(agentDir, 'prompts'), { recursive: true });
+  await writeFile(path.join(agentDir, 'prompts', 'system.md'), '# System', 'utf8');
   await mkdir(path.join(agentDir, 'skills', 'my-skill'), { recursive: true });
   await writeFile(path.join(agentDir, 'skills', 'my-skill', 'SKILL.md'), '# My Skill', 'utf8');
   await mkdir(path.join(agentDir, 'extensions', 'ext1'), { recursive: true });
@@ -253,12 +270,18 @@ test('export --runtime-mode full includes skills and extensions in runtime subtr
   const report = JSON.parse(stdout);
   assert.equal(report.status, 'ok');
   assert.equal(report.runtimeMode, 'full');
-  assert.ok(report.runtimeFiles.some((f: string) => f.includes('skills/')));
-  assert.ok(report.runtimeFiles.some((f: string) => f.includes('extensions/')));
+  assert.ok(report.runtimeFiles.includes('settings.json'));
+  assert.ok(report.runtimeFiles.includes('prompts/system.md'));
+  assert.ok(!report.runtimeFiles.some((f: string) => f.includes('skills/')));
+  assert.ok(!report.runtimeFiles.some((f: string) => f.includes('extensions/')));
+  assert.ok(report.runtimeUnsupportedFiles.includes('skills/my-skill/SKILL.md'));
+  assert.ok(report.runtimeUnsupportedFiles.includes('extensions/ext1/package.json'));
 
   assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'skills', 'my-skill', 'SKILL.md')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'extensions', 'ext1', 'package.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'prompts', 'system.md')));
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'skills', 'my-skill', 'SKILL.md')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'extensions', 'ext1', 'package.json')), false);
 });
 
 test('export --runtime-mode default excludes skills and extensions', async () => {

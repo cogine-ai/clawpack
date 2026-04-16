@@ -154,6 +154,7 @@ export async function writePackageDirectory(params: {
       agentDir: runtimeScan.agentDir,
       includedFiles: runtimeScan.includedFiles.map(f => f.relativePath),
       excludedFiles: runtimeScan.excludedFiles,
+      artifacts: runtimeScan.artifacts,
       warnings: runtimeScan.warnings,
       modelsSanitized: runtimeScan.sanitizedModels !== undefined,
       modelsSkipped: runtimeScan.sanitizedModels === undefined &&
