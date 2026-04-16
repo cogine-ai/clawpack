@@ -110,6 +110,9 @@ test('Workspace missing optional OpenClaw files does not fail workspace contract
   });
 
   try {
+    await rm(path.join(workspace, 'MEMORY.md'), { force: true });
+    await rm(path.join(workspace, 'MEMORY.MD'), { force: true });
+
     const report = await validateImportedWorkspace({
       targetWorkspacePath: workspace,
       agentId: 'test-agent',
