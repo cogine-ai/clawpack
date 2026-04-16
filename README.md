@@ -476,11 +476,11 @@ Even after a successful import, you should still:
 
 - review `USER.md` and `TOOLS.md`, plus `MEMORY.md` if present
 - reinstall any required skills manually
-- reconfigure channel bindings and cron jobs manually
+- reconfigure channel bindings and any scheduled jobs manually
 - run `openclaw doctor`
 - verify model/provider availability on the target instance
 
-Today, clawpacker does not restore live channel bindings or scheduled jobs. A future version may support portable placeholder-based representations for these areas, but that is different from raw instance-state migration.
+Today, clawpacker does not package or restore live channel bindings or scheduled jobs. There is no `config/cron.json` portability contract in the package format; scheduled jobs remain target-instance setup you must recreate manually.
 
 Clawpacker packages a portable workspace template plus an optional runtime slice. For full-instance moves or environment repair, follow the official OpenClaw migration flow rather than treating clawpacker as a complete instance backup.
 

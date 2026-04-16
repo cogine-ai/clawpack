@@ -5,6 +5,7 @@ import JSON5 from 'json5';
 import { SKILL_ROOT_PRECEDENCE, SKILLS_MODE } from './constants';
 import {
   loadOpenClawConfig,
+  resolveUserPath,
   resolveAgentContextForWorkspace,
   type MinimalOpenClawConfig,
 } from './openclaw-config';
@@ -134,7 +135,7 @@ function resolveHomePath(override?: string): string {
 
 function resolveStateDir(homePath: string, configPath?: string): string {
   const explicitStateDir = process.env.OPENCLAW_STATE_DIR?.trim();
-  if (explicitStateDir) return path.resolve(explicitStateDir);
+  if (explicitStateDir) return resolveUserPath(explicitStateDir);
   if (configPath) return path.dirname(configPath);
   return path.join(homePath, '.openclaw');
 }
@@ -523,10 +524,8 @@ async function pathExists(targetPath: string): Promise<boolean> {
 }
 
 async function collectSkillKeys(rootPath: string): Promise<string[]> {
-  let dirents;
-  try {
-    dirents = await readdir(rootPath, { withFileTypes: true });
-  } catch {
+  const dirents = await readdir(rootPath, { withFileTypes: true }).catch(() => undefined);
+  if (!dirents) {
     return [];
   }
 

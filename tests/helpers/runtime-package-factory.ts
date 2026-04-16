@@ -153,7 +153,6 @@ export async function buildRuntimeTestPackage(
       skills: 'topology-snapshot',
       agentDefinition: true,
       bindings: false,
-      cronJobs: false,
       runtimeMode: mode,
       runtimeFiles: mode !== 'none' ? includedFiles : [],
     },

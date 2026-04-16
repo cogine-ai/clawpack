@@ -678,7 +678,7 @@ function configCandidatesForStateDir(stateDir: string): string[] {
   ];
 }
 
-function resolveUserPath(input: string): string {
+export function resolveUserPath(input: string): string {
   const trimmed = input.trim();
   if (trimmed === '~') {
     return path.resolve(homedir());

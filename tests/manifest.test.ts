@@ -44,7 +44,7 @@ test('manifest builder emits required fields and additive metadata', async () =>
   assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'notes.txt', 'SOUL.md', 'TOOLS.md', 'USER.md']);
   assert.deepEqual(manifest.includes.bootstrapFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
   assert.equal(manifest.includes.bindings, false);
-  assert.equal(manifest.includes.cronJobs, false);
+  assert.equal('cronJobs' in manifest.includes, false);
   assert.deepEqual(manifest.excludes, { secrets: true, sessionState: true, connectionState: true });
   assert.deepEqual(manifest.metadata, {
     createdAt: '2026-03-18T00:00:00.000Z',

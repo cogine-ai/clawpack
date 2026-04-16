@@ -6,7 +6,6 @@ import { buildExportArtifacts } from './manifest';
 import type {
   AgentBindingDefinition,
   AgentDefinition,
-  CronJobDefinition,
   ExportPackageResult,
   ImportHints,
   RuntimeManifest,
@@ -23,7 +22,6 @@ export async function writePackageArchive(params: {
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   const archivePath = deriveArchivePath(params.outputPath);
@@ -55,7 +53,6 @@ export async function writePackageDirectory(params: {
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   await rm(params.outputPath, { recursive: true, force: true });
@@ -106,12 +103,6 @@ export async function writePackageDirectory(params: {
     const bindingsJson = JSON.stringify(params.bindings, null, 2);
     await writeFile(path.join(params.outputPath, 'config', 'bindings.json'), `${bindingsJson}\n`, 'utf8');
     checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
-  }
-
-  if (params.cronJobs && params.cronJobs.length > 0) {
-    const cronJson = JSON.stringify(params.cronJobs, null, 2);
-    await writeFile(path.join(params.outputPath, 'config', 'cron.json'), `${cronJson}\n`, 'utf8');
-    checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
   }
 
   let runtimeManifestData: RuntimeManifest | undefined;
@@ -193,7 +184,6 @@ export async function writePackageDirectory(params: {
     checksums,
     warnings: importHints.warnings,
     hasBindings: (params.bindings?.length ?? 0) > 0,
-    hasCronJobs: (params.cronJobs?.length ?? 0) > 0,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,
   });

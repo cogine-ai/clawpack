@@ -28,9 +28,11 @@ test('export command writes package directory structure and excludes daily memor
   }
 
   assert.equal(existsSync(path.join(outputRoot, 'workspace', 'memory', '2026-03-16.md')), false);
+  assert.equal(existsSync(path.join(outputRoot, 'config', 'cron.json')), false);
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
   assert.equal(manifest.includes.skills, 'topology-snapshot');
+  assert.equal('cronJobs' in manifest.includes, false);
   assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
   assert.equal(typeof manifest.metadata.createdBy.version, 'string');
@@ -64,6 +66,25 @@ test('package reader tolerates manifests from older packages with missing additi
   assert.equal(pkg.manifest.metadata, undefined);
   assert.equal(pkg.manifest.source.openclawVersion, undefined);
   assert.equal(pkg.workspaceFiles.length >= 6, true);
+});
+
+test('package reader ignores legacy cron package metadata from older packages', async () => {
+  await rm(outputRoot, { recursive: true, force: true });
+  await runCli(['export', '--workspace', fixture, '--out', outputRoot]);
+
+  const manifestPath = path.join(outputRoot, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.includes.cronJobs = true;
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  await writeFile(
+    path.join(outputRoot, 'config', 'cron.json'),
+    `${JSON.stringify([{ schedule: '0 * * * *', agentId: 'supercoder' }], null, 2)}\n`,
+    'utf8',
+  );
+
+  const pkg = await readPackageDirectory(outputRoot);
+  assert.equal('cronJobs' in pkg, false);
 });
 
 test('export command defaults to human-readable output and supports --json', async () => {

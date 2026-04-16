@@ -269,3 +269,116 @@ test('inspect and export surface the topology snapshot in JSON output', async ()
     await cleanupTempWorkspace(tmpRoot);
   }
 });
+
+test('inspect and export honor explicit agentId when multiple agents share one workspace', async () => {
+  const fixture = await setupSkillTopologyFixture(tmpRoot);
+  const multiAgentConfigPath = path.join(tmpRoot, 'multi-agent-config.json');
+
+  try {
+    await writeFile(
+      multiAgentConfigPath,
+      JSON.stringify(
+        {
+          agents: {
+            list: [
+              {
+                id: 'writer-default',
+                default: true,
+                workspace: fixture.workspacePath,
+                skills: ['github'],
+              },
+              {
+                id: 'writer-docs',
+                workspace: fixture.workspacePath,
+                skills: ['docs-search'],
+              },
+            ],
+          },
+          skills: {
+            load: {
+              extraDirs: [fixture.extraDir],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const inspectResult = await runCli(
+      [
+        'inspect',
+        '--workspace',
+        fixture.workspacePath,
+        '--config',
+        multiAgentConfigPath,
+        '--agent-id',
+        'writer-docs',
+        '--json',
+      ],
+      { env: { HOME: fixture.homePath } },
+    );
+    const inspectReport = JSON.parse(inspectResult.stdout);
+    assert.deepEqual(inspectReport.skills.allowlist.values, ['docs-search']);
+
+    const exportPath = path.join(tmpRoot, 'pkg-multi.ocpkg');
+    const exportResult = await runCli(
+      [
+        'export',
+        '--workspace',
+        fixture.workspacePath,
+        '--config',
+        multiAgentConfigPath,
+        '--agent-id',
+        'writer-docs',
+        '--out',
+        exportPath,
+        '--json',
+      ],
+      { env: { HOME: fixture.homePath } },
+    );
+    const exportReport = JSON.parse(exportResult.stdout);
+    assert.deepEqual(exportReport.skills.allowlist.values, ['docs-search']);
+  } finally {
+    await cleanupTempWorkspace(tmpRoot);
+  }
+});
+
+test('detectSkills expands tilde OPENCLAW_STATE_DIR for managed roots', async () => {
+  const fixture = await setupSkillTopologyFixture(tmpRoot);
+  const originalHome = process.env.HOME;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+
+  try {
+    const tildeStateDir = path.join(fixture.homePath, '.tilde-openclaw');
+    await writeSkill(tildeStateDir, 'skills/tilde-managed');
+
+    process.env.HOME = fixture.homePath;
+    process.env.OPENCLAW_STATE_DIR = '~/.tilde-openclaw';
+
+    const scan = await scanWorkspace(fixture.workspacePath);
+    const result = await detectSkills(scan, {
+      homePath: fixture.homePath,
+    });
+
+    const managedRoot = result.roots.find((root) => root.kind === 'managed');
+    assert.ok(managedRoot);
+    assert.equal(managedRoot.path, path.join(fixture.homePath, '.tilde-openclaw', 'skills'));
+    assert.ok(managedRoot.skillKeys.includes('tilde-managed'));
+  } finally {
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
+
+    await cleanupTempWorkspace(tmpRoot);
+  }
+});

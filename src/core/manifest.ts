@@ -23,7 +23,6 @@ export function buildManifest(params: {
   metadata?: PackageManifest['metadata'];
   checksums?: Record<string, string>;
   hasBindings?: boolean;
-  hasCronJobs?: boolean;
   runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
@@ -47,7 +46,6 @@ export function buildManifest(params: {
       skills: SKILLS_MODE,
       agentDefinition: true,
       bindings: params.hasBindings ?? false,
-      cronJobs: params.hasCronJobs ?? false,
       runtimeMode: params.runtimeScan?.mode,
       runtimeFiles: params.runtimeScan?.includedFiles.map(f => f.relativePath),
     },
@@ -95,7 +93,6 @@ export function buildExportArtifacts(params: {
   checksums: Record<string, string>;
   warnings?: string[];
   hasBindings?: boolean;
-  hasCronJobs?: boolean;
   runtimeScan?: RuntimeScanResult;
   runtimeManifest?: RuntimeManifest;
 }): ExportArtifacts {

@@ -7,7 +7,6 @@ import { MIN_READABLE_FORMAT_VERSION, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } fro
 import type {
   AgentBindingDefinition,
   AgentDefinition,
-  CronJobDefinition,
   ExportReport,
   ImportHints,
   PackageManifest,
@@ -85,7 +84,6 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
 
   manifest.includes.bootstrapFiles ??= [];
   manifest.includes.bindings ??= false;
-  manifest.includes.cronJobs ??= false;
   manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
@@ -117,20 +115,12 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   }));
 
   const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
-  const cronPath = path.join(resolvedRoot, 'config', 'cron.json');
 
   let bindings: AgentBindingDefinition[] | undefined;
   if (manifest.includes.bindings) {
     bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
   } else {
     bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  }
-
-  let cronJobs: CronJobDefinition[] | undefined;
-  if (manifest.includes.cronJobs) {
-    cronJobs = await readJsonFile<CronJobDefinition[]>(cronPath);
-  } else {
-    cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(cronPath);
   }
 
   const runtimeManifestPath = path.join(resolvedRoot, 'runtime', 'manifest.json');
@@ -146,7 +136,6 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     exportReport,
     workspaceFiles,
     bindings,
-    cronJobs,
     runtimeManifest,
   };
 }

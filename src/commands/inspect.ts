@@ -24,7 +24,10 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   const runtimeMode = normalizeRuntimeMode(options.runtimeMode) ?? 'default';
   const workspacePath = path.resolve(options.workspace);
   const scan = await scanWorkspace(workspacePath);
-  const skills = await detectSkills(scan);
+  const skills = await detectSkills(scan, {
+    configPath: options.config,
+    agentId: options.agentId,
+  });
   const agentDefinition = await extractAgentDefinition(workspacePath, {
     configPath: options.config,
     agentId: options.agentId,

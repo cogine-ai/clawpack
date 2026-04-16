@@ -27,7 +27,10 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const scan = await scanWorkspace(path.resolve(options.workspace));
-  const skills = await detectSkills(scan);
+  const skills = await detectSkills(scan, {
+    configPath: options.config,
+    agentId: options.agentId,
+  });
   const agentDefinition = await extractAgentDefinition(scan.workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
