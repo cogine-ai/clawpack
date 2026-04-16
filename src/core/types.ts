@@ -194,7 +194,6 @@ export interface ReadPackageResult {
     absolutePath: string;
   }>;
   bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
   runtimeManifest?: RuntimeManifest;
 }
 

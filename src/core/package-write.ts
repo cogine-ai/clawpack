@@ -116,12 +116,6 @@ export async function writePackageDirectory(params: {
     checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
   }
 
-  if (params.cronJobs && params.cronJobs.length > 0) {
-    const cronJson = JSON.stringify(params.cronJobs, null, 2);
-    await writeFile(path.join(params.outputPath, 'config', 'cron.json'), `${cronJson}\n`, 'utf8');
-    checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
-  }
-
   let runtimeManifestData: RuntimeManifest | undefined;
 
   const shouldWriteRuntimeMetadata =
