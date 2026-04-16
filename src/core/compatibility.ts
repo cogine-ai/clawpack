@@ -40,21 +40,20 @@ export function buildRuntimeCompatibility(
     });
   }
 
-  return entries;
+  return sortCompatibilityEntries(entries);
 }
 
 export function buildSkillsCompatibility(skills: SkillsManifest): CompatibilityEntry[] {
   const detected = sortUnique([
     ...skills.workspaceSkills,
     ...skills.referencedSkills,
-    ...skills.notes,
   ]);
 
   if (detected.length === 0) {
     return [];
   }
 
-  return [
+  return sortCompatibilityEntries([
     {
       label: 'unsupported',
       message: 'Skill implementations are manifest-only and are not bundled',
@@ -65,25 +64,25 @@ export function buildSkillsCompatibility(skills: SkillsManifest): CompatibilityE
       message: 'Install required skills manually on the target OpenClaw instance',
       items: detected,
     },
-  ];
+  ]);
 }
 
 export function buildManualCompatibility(messages: string[]): CompatibilityEntry[] {
-  return sortUnique(messages)
+  return sortCompatibilityEntries(sortUnique(messages)
     .filter((message) => message.length > 0)
     .map((message) => ({
       label: 'manual',
       message,
-    }));
+    })));
 }
 
 export function buildUnsupportedCompatibility(messages: string[]): CompatibilityEntry[] {
-  return sortUnique(messages)
+  return sortCompatibilityEntries(sortUnique(messages)
     .filter((message) => message.length > 0)
     .map((message) => ({
       label: 'unsupported',
       message,
-    }));
+    })));
 }
 
 export function mergeCompatibilityEntries(
@@ -112,7 +111,7 @@ export function mergeCompatibilityEntries(
     }
   }
 
-  return merged.sort(compareCompatibilityEntries);
+  return sortCompatibilityEntries(merged);
 }
 
 export function renderCompatibilityLines(entries: CompatibilityEntry[]): string[] {
@@ -145,6 +144,10 @@ function compareCompatibilityEntries(left: CompatibilityEntry, right: Compatibil
   }
 
   return JSON.stringify(left.items ?? []).localeCompare(JSON.stringify(right.items ?? []));
+}
+
+function sortCompatibilityEntries(entries: CompatibilityEntry[]): CompatibilityEntry[] {
+  return [...entries].sort(compareCompatibilityEntries);
 }
 
 function sortUnique(values: string[]): string[] {

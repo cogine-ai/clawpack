@@ -73,10 +73,17 @@ export async function writePackageDirectory(params: {
     checksums[path.posix.join('workspace', file.relativePath)] = await checksumFile(targetPath);
   }
 
-  const warnings = [
-    'Skills are manifest-only and may require manual installation.',
-    'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
-  ];
+  const warnings: string[] = [];
+  const hasDetectedSkills = params.skills.workspaceSkills.length > 0 || params.skills.referencedSkills.length > 0;
+  const hasBindings = (params.bindings?.length ?? 0) > 0;
+  const hasCronJobs = (params.cronJobs?.length ?? 0) > 0;
+
+  if (hasDetectedSkills) {
+    warnings.push('Skills are manifest-only and may require manual installation.');
+  }
+  if (hasBindings || hasCronJobs) {
+    warnings.push('This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.');
+  }
 
   const importHints: ImportHints = {
     requiredInputs: [
@@ -194,8 +201,8 @@ export async function writePackageDirectory(params: {
     openclawVersion: params.openclawVersion,
     checksums,
     warnings: importHints.warnings,
-    hasBindings: (params.bindings?.length ?? 0) > 0,
-    hasCronJobs: (params.cronJobs?.length ?? 0) > 0,
+    hasBindings,
+    hasCronJobs,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,
   });

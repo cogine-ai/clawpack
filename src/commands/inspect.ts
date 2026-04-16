@@ -36,9 +36,11 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     agentId: options.agentId,
   });
 
-  const warnings = [
-    'Skills are manifest-only and may require manual installation.',
-  ];
+  const warnings: string[] = [];
+  const hasDetectedSkills = skills.workspaceSkills.length > 0 || skills.referencedSkills.length > 0;
+  if (hasDetectedSkills) {
+    warnings.push('Skills are manifest-only and may require manual installation.');
+  }
 
   let runtimeResult: RuntimeScanResult | undefined;
   if (runtimeMode !== 'none') {
@@ -88,7 +90,9 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     compatibility: mergeCompatibilityEntries(
       runtimeResult?.compatibility,
       buildSkillsCompatibility(skills),
-      buildManualCompatibility(warnings),
+      buildManualCompatibility(
+        warnings.filter((warning) => /agentDir/i.test(warning)),
+      ),
     ),
     warnings,
     errors: [],

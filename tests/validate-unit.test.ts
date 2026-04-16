@@ -24,6 +24,8 @@ test('Workspace does not exist - failed contains "Workspace is missing", returns
   assert.ok(report.failed.some((f) => f.includes('Workspace is missing')));
   assert.equal(report.passed.length, 0);
   assert.ok(!report.warnings.some((w) => w.includes('Skills are manifest-only')));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(report.compatibility.some((entry) => entry.label === 'unsupported'));
 });
 
 test('Workspace exists with all required files + agent-definition.json - all passed', async () => {

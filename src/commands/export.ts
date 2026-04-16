@@ -2,7 +2,6 @@ import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
 import {
-  buildManualCompatibility,
   buildSkillsCompatibility,
   mergeCompatibilityEntries,
   renderCompatibilityLines,
@@ -95,10 +94,6 @@ export async function runExport(options: ExportOptions): Promise<void> {
     compatibility: mergeCompatibilityEntries(
       runtimeScan?.compatibility,
       buildSkillsCompatibility(skills),
-      buildManualCompatibility([
-        'Skills are manifest-only and may require manual installation.',
-        'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
-      ]),
     ),
   };
 

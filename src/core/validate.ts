@@ -41,6 +41,7 @@ export async function validateImportedWorkspace(params: {
     report.passed.push(`Workspace exists: ${targetWorkspacePath}`);
   } else {
     report.failed.push(`Workspace is missing: ${targetWorkspacePath}`);
+    assignCompatibility(report);
     return report;
   }
 
@@ -155,16 +156,7 @@ export async function validateImportedWorkspace(params: {
   report.nextSteps.push(
     'Review imported USER.md and TOOLS.md, plus MEMORY.md if present, for target-specific adjustments.',
   );
-  report.compatibility = mergeCompatibilityEntries(
-    buildUnsupportedCompatibility([
-      'Skill implementations are manifest-only and are not restored by validation.',
-      'Live bindings and scheduled jobs are not restored by clawpacker.',
-    ]),
-    buildManualCompatibility([
-      ...report.warnings,
-      ...report.nextSteps,
-    ]),
-  );
+  assignCompatibility(report);
 
   return report;
 }
@@ -353,4 +345,17 @@ function getExpectedFilesFromChecksums(
     .filter((key) => key.startsWith(keyPrefix))
     .map((key) => key.slice(keyPrefix.length))
     .sort((a, b) => a.localeCompare(b));
+}
+
+function assignCompatibility(report: ValidationReport): void {
+  report.compatibility = mergeCompatibilityEntries(
+    buildUnsupportedCompatibility([
+      'Skill implementations are manifest-only and are not restored by validation.',
+      'Live bindings and scheduled jobs are not restored by clawpacker.',
+    ]),
+    buildManualCompatibility([
+      ...report.warnings,
+      ...report.nextSteps,
+    ]),
+  );
 }

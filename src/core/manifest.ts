@@ -36,6 +36,8 @@ export function buildManifest(params: {
   const workspaceName = path.basename(params.workspacePath);
   const compatibility = buildPackageCompatibility({
     skills: params.skills,
+    hasBindings: params.hasBindings ?? false,
+    hasCronJobs: params.hasCronJobs ?? false,
     runtimeCompatibility: params.runtimeScan?.compatibility,
     runtimeArtifacts: params.runtimeScan?.artifacts,
     runtimeWarnings: params.runtimeScan?.warnings,
@@ -83,10 +85,14 @@ export function buildExportReport(params: {
   scan: WorkspaceScanResult;
   skills: SkillsManifest;
   warnings?: string[];
+  hasBindings?: boolean;
+  hasCronJobs?: boolean;
   runtimeManifest?: RuntimeManifest;
 }): ExportReport {
   const compatibility = buildPackageCompatibility({
     skills: params.skills,
+    hasBindings: params.hasBindings ?? false,
+    hasCronJobs: params.hasCronJobs ?? false,
     runtimeCompatibility: params.runtimeManifest?.compatibility,
     runtimeArtifacts: params.runtimeManifest?.artifacts,
     runtimeWarnings: params.runtimeManifest?.warnings,
@@ -147,14 +153,24 @@ function buildPackageMetadata(checksums: Record<string, string>): NonNullable<Pa
 
 function buildPackageCompatibility(params: {
   skills: SkillsManifest;
+  hasBindings: boolean;
+  hasCronJobs: boolean;
   runtimeCompatibility?: CompatibilityEntry[];
   runtimeArtifacts?: RuntimeScanResult['artifacts'];
   runtimeWarnings?: string[];
   manualMessages?: string[];
 }): CompatibilityEntry[] {
+  const manualMessages = [...(params.manualMessages ?? [])];
+  if (params.hasBindings) {
+    manualMessages.push('Channel bindings require manual reconfiguration on the target instance.');
+  }
+  if (params.hasCronJobs) {
+    manualMessages.push('Scheduled jobs require manual reconfiguration on the target instance.');
+  }
+
   return mergeCompatibilityEntries(
     params.runtimeCompatibility ?? buildRuntimeCompatibility(params.runtimeArtifacts, params.runtimeWarnings),
     buildSkillsCompatibility(params.skills),
-    buildManualCompatibility(params.manualMessages ?? []),
+    buildManualCompatibility(manualMessages),
   );
 }

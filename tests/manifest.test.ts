@@ -3,6 +3,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { extractAgentDefinition } from '../src/core/agent-extract';
 import { checksumText } from '../src/core/checksums';
+import { buildSkillsCompatibility } from '../src/core/compatibility';
 import { buildExportArtifacts, buildExportReport, buildManifest } from '../src/core/manifest';
 import { detectSkills } from '../src/core/skills-detect';
 import type {
@@ -185,6 +186,8 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     scan,
     skills,
     agentDefinition,
+    hasBindings: true,
+    hasCronJobs: true,
     runtimeScan,
   });
   const report = buildExportReport({
@@ -192,7 +195,8 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     workspacePath: fixture,
     scan,
     skills,
-    warnings: ['Skills are manifest-only and may require manual installation.'],
+    hasBindings: true,
+    hasCronJobs: true,
     runtimeManifest: {
       mode: runtimeScan.mode,
       agentDir: runtimeScan.agentDir,
@@ -220,7 +224,12 @@ test('buildManifest and buildExportReport include compatibility labels', async (
       entry.label === 'unsupported' && entry.items?.includes('skills/demo/SKILL.md')),
   );
   assert.ok(
-    manifest.compatibility.labels.some((entry) => entry.label === 'manual'),
+    manifest.compatibility.labels.some((entry) =>
+      entry.label === 'manual' && entry.message.includes('Channel bindings require manual reconfiguration')),
+  );
+  assert.ok(
+    manifest.compatibility.labels.some((entry) =>
+      entry.label === 'manual' && entry.message.includes('Scheduled jobs require manual reconfiguration')),
   );
 
   assert.ok(Array.isArray(report.compatibility));
@@ -229,7 +238,36 @@ test('buildManifest and buildExportReport include compatibility labels', async (
       entry.label === 'official' && entry.items?.includes('models.json')),
   );
   assert.ok(
-    report.compatibility.some((entry) => entry.label === 'manual'),
+    report.compatibility.some((entry) =>
+      entry.label === 'manual' && entry.message.includes('Channel bindings require manual reconfiguration')),
+  );
+  assert.ok(
+    report.compatibility.some((entry) =>
+      entry.label === 'manual' && entry.message.includes('Scheduled jobs require manual reconfiguration')),
+  );
+  const labelOrder = ['official', 'inferred', 'manual', 'unsupported'];
+  const manifestOrder = manifest.compatibility.labels.map((entry) => labelOrder.indexOf(entry.label));
+  assert.deepEqual(manifestOrder, [...manifestOrder].sort((left, right) => left - right));
+  const reportOrder = report.compatibility.map((entry) => labelOrder.indexOf(entry.label));
+  assert.deepEqual(reportOrder, [...reportOrder].sort((left, right) => left - right));
+});
+
+test('buildSkillsCompatibility excludes freeform notes from compatibility items', () => {
+  const compatibility = buildSkillsCompatibility({
+    mode: 'manifest-only',
+    workspaceSkills: ['brainstorming'],
+    referencedSkills: ['review-and-ship'],
+    notes: ['Use the local skill registry for installation guidance.'],
+  });
+
+  const expectedItems = ['brainstorming', 'review-and-ship'];
+  assert.deepEqual(
+    compatibility.map((entry) => entry.items),
+    [expectedItems, expectedItems],
+  );
+  assert.ok(
+    compatibility.every((entry) =>
+      entry.items?.every((item) => item !== 'Use the local skill registry for installation guidance.')),
   );
 });
 
