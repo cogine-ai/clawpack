@@ -30,7 +30,7 @@ test('export command writes package directory structure and excludes daily memor
   assert.equal(existsSync(path.join(outputRoot, 'workspace', 'memory', '2026-03-16.md')), false);
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.includes.skills, 'manifest-only');
+  assert.equal(manifest.includes.skills, 'topology-snapshot');
   assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
   assert.equal(typeof manifest.metadata.createdBy.version, 'string');
@@ -148,7 +148,7 @@ test('roundtrip export -> import -> validate succeeds with expected warnings', a
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0);
   assert.ok(
-    report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
+    report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')),
   );
   assert.ok(report.nextSteps.some((step: string) => step.includes('does not restore live bindings or scheduled jobs')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('openclaw doctor')));

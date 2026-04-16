@@ -116,9 +116,17 @@ export async function buildRuntimeTestPackage(
   };
 
   const skills = {
-    mode: 'manifest-only',
-    workspaceSkills: [],
-    referencedSkills: [],
+    mode: 'topology-snapshot',
+    roots: [],
+    allowlist: {
+      mode: 'unrestricted',
+      values: [],
+      source: 'none',
+      portability: 'host-bound',
+      notes: [],
+    },
+    entries: [],
+    effectiveSkills: [],
     notes: [],
   };
 
@@ -126,7 +134,7 @@ export async function buildRuntimeTestPackage(
     requiredInputs: [
       { key: 'agentId', reason: 'Target instance may already contain the source agent id.' },
     ],
-    warnings: ['Skills are manifest-only and may require manual installation.'],
+    warnings: ['Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.'],
   };
 
   const manifest = {
@@ -142,7 +150,7 @@ export async function buildRuntimeTestPackage(
       workspaceFiles,
       bootstrapFiles: workspaceFiles,
       dailyMemory: false,
-      skills: 'manifest-only',
+      skills: 'topology-snapshot',
       agentDefinition: true,
       bindings: false,
       cronJobs: false,

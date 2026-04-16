@@ -31,7 +31,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   });
 
   const warnings = [
-    'Skills are manifest-only and may require manual installation.',
+    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
   ];
 
   let runtimeResult: RuntimeScanResult | undefined;
@@ -102,8 +102,9 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `  portable fields: ${Object.entries(report.portableConfig.fieldClassification)
       .map(([key, value]) => `${key}=${value}`)
       .join(', ')}`,
-    `Skills (workspace): ${skills.workspaceSkills.join(', ') || 'none'}`,
-    `Skills (referenced): ${skills.referencedSkills.join(', ') || 'none'}`,
+    `Skill allowlist: ${skills.allowlist.mode === 'allowlist' ? `${skills.allowlist.values.join(', ') || 'none'} [${skills.allowlist.source}]` : 'unrestricted'}`,
+    `Skill roots (${skills.roots.length}): ${skills.roots.map((root) => `${root.kind}${root.exists ? '' : ' (missing)'}`).join(', ') || 'none'}`,
+    `Visible skills (${skills.effectiveSkills.filter((skill) => skill.status === 'visible').length}): ${skills.effectiveSkills.filter((skill) => skill.status === 'visible').map((skill) => `${skill.skillKey} [${skill.portability}]`).join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
     `Runtime mode: ${report.runtimeMode}`,
