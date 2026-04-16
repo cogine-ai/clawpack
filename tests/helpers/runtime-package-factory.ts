@@ -144,7 +144,6 @@ export async function buildRuntimeTestPackage(
       dailyMemory: false,
       skills: 'manifest-only',
       agentDefinition: true,
-      cronJobs: false,
       runtimeMode: mode,
       runtimeFiles: mode !== 'none' ? includedFiles : [],
     },

@@ -77,16 +77,6 @@ export interface AgentBindingDefinition {
   acp?: Record<string, unknown>;
 }
 
-/** All fields optional: clawpack transports cron definitions as-is from the source config without runtime validation. */
-export interface CronJobDefinition {
-  agentId?: string;
-  schedule?: string;
-  sessionTarget?: string;
-  payload?: Record<string, unknown>;
-  delivery?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 export interface ImportHints {
   requiredInputs: Array<{
     key: 'agentId' | 'targetWorkspacePath';
@@ -124,7 +114,6 @@ export interface PackageManifest {
     dailyMemory: boolean;
     skills: 'manifest-only';
     agentDefinition: boolean;
-    cronJobs?: boolean;
     runtimeMode?: RuntimeMode;
     runtimeFiles?: string[];
   };
@@ -183,7 +172,6 @@ export interface ReadPackageResult {
     absolutePath: string;
   }>;
   bindingHints?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
   runtimeManifest?: RuntimeManifest;
 }
 
