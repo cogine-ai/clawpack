@@ -95,6 +95,14 @@ export interface ImportHints {
   warnings: string[];
 }
 
+export type CompatibilityLabel = 'official' | 'inferred' | 'manual' | 'unsupported';
+
+export interface CompatibilityEntry {
+  label: CompatibilityLabel;
+  message: string;
+  items?: string[];
+}
+
 export interface PackageManifest {
   formatVersion: number;
   packageType: string;
@@ -139,6 +147,7 @@ export interface PackageManifest {
   compatibility: {
     minFormatVersion: number;
     notes: string[];
+    labels?: CompatibilityEntry[];
   };
 }
 
@@ -151,6 +160,7 @@ export interface ExportReport {
   warnings: string[];
   skills: SkillsManifest;
   runtime?: RuntimeManifest;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface ExportArtifacts {
@@ -269,6 +279,7 @@ export interface ValidationReport {
   warnings: string[];
   failed: string[];
   nextSteps: string[];
+  compatibility?: CompatibilityEntry[];
 }
 
 export type RuntimeMode = 'none' | 'default' | 'full';
@@ -288,6 +299,7 @@ export interface RuntimeScanResult {
   warnings: string[];
   sanitizedModels: Record<string, unknown> | undefined;
   settingsAnalysis: SettingsAnalysis | undefined;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface RuntimeManifest {
@@ -300,6 +312,7 @@ export interface RuntimeManifest {
   modelsSanitized: boolean;
   modelsSkipped: boolean;
   settingsAnalysisIncluded: boolean;
+  compatibility?: CompatibilityEntry[];
 }
 
 export type SettingsPathClassification =

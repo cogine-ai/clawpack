@@ -1,9 +1,16 @@
 import path from 'node:path';
 import packageJson from '../../package.json';
 import { checksumText } from './checksums';
+import {
+  buildManualCompatibility,
+  buildRuntimeCompatibility,
+  buildSkillsCompatibility,
+  mergeCompatibilityEntries,
+} from './compatibility';
 import { EXPORT_MODE, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE, SKILLS_MODE } from './constants';
 import type {
   AgentDefinition,
+  CompatibilityEntry,
   ExportArtifacts,
   ExportReport,
   PackageManifest,
@@ -27,6 +34,12 @@ export function buildManifest(params: {
   runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
+  const compatibility = buildPackageCompatibility({
+    skills: params.skills,
+    runtimeCompatibility: params.runtimeScan?.compatibility,
+    runtimeArtifacts: params.runtimeScan?.artifacts,
+    runtimeWarnings: params.runtimeScan?.warnings,
+  });
   return {
     formatVersion: PACKAGE_FORMAT_VERSION,
     packageType: PACKAGE_TYPE,
@@ -59,6 +72,7 @@ export function buildManifest(params: {
     compatibility: {
       minFormatVersion: PACKAGE_FORMAT_VERSION,
       notes: params.skills.notes,
+      labels: compatibility,
     },
   };
 }
@@ -71,6 +85,14 @@ export function buildExportReport(params: {
   warnings?: string[];
   runtimeManifest?: RuntimeManifest;
 }): ExportReport {
+  const compatibility = buildPackageCompatibility({
+    skills: params.skills,
+    runtimeCompatibility: params.runtimeManifest?.compatibility,
+    runtimeArtifacts: params.runtimeManifest?.artifacts,
+    runtimeWarnings: params.runtimeManifest?.warnings,
+    manualMessages: params.warnings,
+  });
+
   return {
     packageName: params.packageName,
     workspacePath: params.workspacePath,
@@ -82,6 +104,7 @@ export function buildExportReport(params: {
     warnings: params.warnings ?? [],
     skills: params.skills,
     runtime: params.runtimeManifest,
+    compatibility,
   };
 }
 
@@ -120,4 +143,18 @@ function buildPackageMetadata(checksums: Record<string, string>): NonNullable<Pa
     },
     contentHash: checksumText(JSON.stringify(Object.entries(checksums).sort(([left], [right]) => left.localeCompare(right)))),
   };
+}
+
+function buildPackageCompatibility(params: {
+  skills: SkillsManifest;
+  runtimeCompatibility?: CompatibilityEntry[];
+  runtimeArtifacts?: RuntimeScanResult['artifacts'];
+  runtimeWarnings?: string[];
+  manualMessages?: string[];
+}): CompatibilityEntry[] {
+  return mergeCompatibilityEntries(
+    params.runtimeCompatibility ?? buildRuntimeCompatibility(params.runtimeArtifacts, params.runtimeWarnings),
+    buildSkillsCompatibility(params.skills),
+    buildManualCompatibility(params.manualMessages ?? []),
+  );
 }

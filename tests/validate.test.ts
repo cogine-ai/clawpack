@@ -38,6 +38,8 @@ test('validate command defaults to human-readable output and supports --json', a
   assert.match(human.stdout, /Passed:/);
   assert.match(human.stdout, /Warnings:/);
   assert.match(human.stdout, /Next steps:/);
+  assert.match(human.stdout, /Compatibility labels:/);
+  assert.match(human.stdout, /manual:/i);
   assert.equal(human.stdout.includes('"passed"'), false);
 
   const json = await runCli([
@@ -51,6 +53,7 @@ test('validate command defaults to human-readable output and supports --json', a
   const report = JSON.parse(json.stdout);
   assert.ok(Array.isArray(report.passed));
   assert.ok(Array.isArray(report.failed));
+  assert.ok(Array.isArray(report.compatibility));
 });
 
 test('validate command reports passed warnings failed and nextSteps', async () => {
@@ -70,12 +73,19 @@ test('validate command reports passed warnings failed and nextSteps', async () =
   assert.equal(Array.isArray(report.warnings), true);
   assert.equal(Array.isArray(report.failed), true);
   assert.equal(Array.isArray(report.nextSteps), true);
+  assert.equal(Array.isArray(report.compatibility), true);
   assert.equal(report.failed.length, 0);
   assert.ok(
     report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
   );
   assert.ok(report.nextSteps.some((step: string) => step.includes('does not restore live bindings or scheduled jobs')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('openclaw doctor')));
+  assert.ok(
+    report.compatibility.some((entry: { label: string }) => entry.label === 'manual'),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string }) => entry.label === 'unsupported'),
+  );
   assert.equal(
     existsSync(path.join(targetRoot, '.openclaw-agent-package', 'agent-definition.json')),
     true,

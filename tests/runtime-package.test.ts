@@ -185,6 +185,12 @@ test('writePackageDirectory preserves runtime warnings even when no runtime file
     await readFile(path.join(outputPath, 'runtime', 'manifest.json'), 'utf8'),
   );
   assert.deepEqual(runtimeManifest.warnings, ['models.json contained only secrets — skipped entirely.']);
+  assert.ok(
+    runtimeManifest.compatibility.some(
+      (entry: { label: string; message: string }) =>
+        entry.label === 'manual' && entry.message.includes('models.json contained only secrets'),
+    ),
+  );
 
   const checksums = JSON.parse(
     await readFile(path.join(outputPath, 'meta', 'checksums.json'), 'utf8'),

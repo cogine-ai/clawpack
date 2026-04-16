@@ -1,6 +1,12 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
+import {
+  buildManualCompatibility,
+  buildSkillsCompatibility,
+  mergeCompatibilityEntries,
+  renderCompatibilityLines,
+} from '../core/compatibility';
 import { resolveAgentDir } from '../core/openclaw-config';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
@@ -77,7 +83,13 @@ export async function runInspect(options: InspectOptions): Promise<void> {
       excludedFiles: runtimeResult.excludedFiles,
       artifacts: runtimeResult.artifacts,
       warnings: runtimeResult.warnings,
+      compatibility: runtimeResult.compatibility,
     } : undefined,
+    compatibility: mergeCompatibilityEntries(
+      runtimeResult?.compatibility,
+      buildSkillsCompatibility(skills),
+      buildManualCompatibility(warnings),
+    ),
     warnings,
     errors: [],
   };
@@ -107,6 +119,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
     `Runtime mode: ${report.runtimeMode}`,
+    ...renderCompatibilityLines(report.compatibility),
   ];
 
   if (report.portableConfig.notes.length > 0) {
@@ -114,10 +127,10 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   }
 
   if (runtimeResult) {
-    lines.push('Runtime contract: grounded=source-backed, inferred=convenience-only, unsupported=not packaged');
+    lines.push('Runtime labels: official=source-backed, inferred=convenience-only, unsupported=not packaged');
     lines.push(`Runtime agentDir: ${runtimeResult.agentDir}`);
     lines.push(`Runtime included files (${runtimeResult.includedFiles.length}): ${runtimeResult.includedFiles.map(f => f.relativePath).join(', ') || 'none'}`);
-    lines.push(`Runtime grounded files (${runtimeResult.artifacts.grounded.length}): ${runtimeResult.artifacts.grounded.join(', ') || 'none'}`);
+    lines.push(`Runtime official files (${runtimeResult.artifacts.grounded.length}): ${runtimeResult.artifacts.grounded.join(', ') || 'none'}`);
     lines.push(`Runtime inferred files (${runtimeResult.artifacts.inferred.length}): ${runtimeResult.artifacts.inferred.join(', ') || 'none'}`);
     lines.push(`Runtime unsupported files (${runtimeResult.artifacts.unsupported.length}): ${runtimeResult.artifacts.unsupported.join(', ') || 'none'}`);
     lines.push(`Runtime excluded files (${runtimeResult.excludedFiles.length}): ${runtimeResult.excludedFiles.map(f => `${f.relativePath} [${f.reason}]`).join(', ') || 'none'}`);
@@ -137,7 +150,7 @@ export function registerInspectCommand(command: Command): void {
     .option('--agent-id <id>', 'Source agent id override')
     .option(
       '--runtime-mode <mode>',
-      'Runtime layer mode: none (skip), default (grounded source-backed runtime artifacts only), or full (adds inferred convenience files). Unsupported skills/extensions are never packaged. Defaults to "default" when omitted. Auth and session files are always excluded.',
+      'Runtime layer mode: none (skip), default (official source-backed runtime artifacts only), or full (adds inferred convenience files). Unsupported skills/extensions are never packaged. Defaults to "default" when omitted. Auth and session files are always excluded.',
     )
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runInspect);

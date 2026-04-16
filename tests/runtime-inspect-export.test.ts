@@ -37,10 +37,13 @@ test('inspect --runtime-mode default shows runtime section in human output', asy
     '--runtime-mode', 'default',
   ]);
   assert.match(stdout, /Runtime mode: default/);
-  assert.match(stdout, /Runtime grounded files/i);
+  assert.match(stdout, /Compatibility labels:/i);
+  assert.match(stdout, /official:/i);
   assert.match(stdout, /models\.json/);
-  assert.match(stdout, /Runtime inferred files/i);
+  assert.match(stdout, /inferred:/i);
   assert.match(stdout, /settings\.json/);
+  assert.match(stdout, /manual:/i);
+  assert.match(stdout, /unsupported:/i);
   assert.doesNotMatch(stdout, /Runtime grounded files .*AGENTS\.md/i);
 });
 
@@ -78,6 +81,18 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
   assert.ok(Array.isArray(report.runtime.includedFiles));
   assert.ok(Array.isArray(report.runtime.artifacts.grounded));
   assert.ok(report.runtime.artifacts.inferred.includes('settings.json'));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'official' && entry.items?.includes('models.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'inferred' && entry.items?.includes('settings.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string }) => entry.label === 'manual'),
+  );
 });
 
 test('inspect without --runtime-mode defaults to resolved runtime mode output', async () => {
@@ -204,6 +219,18 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   assert.equal(report.runtimeMode, 'default');
   assert.ok(report.runtimeGroundedFiles.includes('models.json'));
   assert.ok(report.runtimeInferredFiles.includes('settings.json'));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'official' && entry.items?.includes('models.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'inferred' && entry.items?.includes('settings.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string }) => entry.label === 'manual'),
+  );
 });
 
 test('export --archive --json reports an existing manifestPath', async () => {

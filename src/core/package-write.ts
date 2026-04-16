@@ -2,6 +2,7 @@ import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createArchive, deriveArchivePath } from './archive';
 import { checksumFile, checksumText } from './checksums';
+import { buildRuntimeCompatibility } from './compatibility';
 import { buildExportArtifacts } from './manifest';
 import type {
   AgentBindingDefinition,
@@ -161,6 +162,7 @@ export async function writePackageDirectory(params: {
         !runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
         runtimeScan.warnings.some(w => w.includes('models.json')),
       settingsAnalysisIncluded: runtimeScan.settingsAnalysis !== undefined,
+      compatibility: runtimeScan.compatibility ?? buildRuntimeCompatibility(runtimeScan.artifacts, runtimeScan.warnings),
     };
 
     const runtimeManifestJson = JSON.stringify(runtimeManifestData, null, 2);

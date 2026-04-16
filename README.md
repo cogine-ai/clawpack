@@ -97,25 +97,26 @@ In addition to workspace files, OpenClaw agents often have runtime configuration
 
 This is an **optional portability convenience**, not a full backup of the agent runtime directory.
 
-#### Runtime evidence levels
+#### Runtime compatibility labels
 
-Clawpacker classifies detected runtime files by evidence level:
+Clawpacker classifies detected runtime files and follow-up work with four compatibility labels:
 
-| Evidence | Meaning | Current files |
-|----------|---------|---------------|
-| `grounded` | Source-backed and aligned with the current runtime contract | `models.json` |
+| Label | Meaning | Current examples |
+|-------|---------|------------------|
+| `official` | Source-backed and aligned with the current runtime contract | `models.json` |
 | `inferred` | Useful convenience files, but not a strong current OpenClaw portability contract | `settings.json`, `prompts/**`, `themes/**` |
+| `manual` | Requires explicit operator follow-up | reinstalling skills, reconfiguring bindings, reviewing inferred files |
 | `unsupported` | Not currently treated as canonical portable per-agent artifacts | `skills/**`, `extensions/**` |
 
-`inspect` and `export` report these buckets explicitly so the runtime layer does not overstate what is officially portable.
+`inspect`, `export`, package metadata, and `validate` all surface these same labels so the tool makes a clean distinction between what is source-backed, what is inferred, what is unsupported, and what still needs operator action.
 
 #### The three modes
 
 | Mode | What gets packaged | When to use |
 |------|-------------------|-------------|
 | `none` | Nothing from agentDir | You only need workspace files |
-| `default` | Only `grounded` runtime artifacts | Honest default for portability checks and packaging |
-| `full` | `grounded` plus `inferred` runtime artifacts | When you intentionally want extra convenience files and understand they are not an official capability contract |
+| `default` | Only `official` runtime artifacts | Honest default for portability checks and packaging |
+| `full` | `official` plus `inferred` runtime artifacts | When you intentionally want extra convenience files and understand they are not an official capability contract |
 
 Use `--runtime-mode <mode>` on `inspect` and `export`. When omitted, `inspect` defaults to `default`; `export` skips the runtime layer unless the flag is explicitly provided.
 
@@ -262,7 +263,7 @@ What `inspect` tells you:
 - whether a portable agent definition could be derived
 - which fields are portable vs import-time inputs
 - which skills were detected
-- runtime layer contents grouped as `grounded`, `inferred`, and `unsupported` (when `--runtime-mode` is `default` or `full`)
+- compatibility labels grouped as `official`, `inferred`, `manual`, and `unsupported` (when `--runtime-mode` is `default` or `full`)
 - warnings you should expect on export/import
 
 ### 2) Export a package
@@ -312,9 +313,21 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
   "fileCount": 12,
   "runtimeMode": "default",
   "runtimeFiles": ["models.json"],
+  "runtimeOfficialFiles": ["models.json"],
   "runtimeGroundedFiles": ["models.json"],
   "runtimeInferredFiles": ["settings.json", "prompts/system.md"],
-  "runtimeUnsupportedFiles": ["skills/review/SKILL.md"]
+  "runtimeUnsupportedFiles": ["skills/review/SKILL.md"],
+  "compatibility": [
+    {
+      "label": "official",
+      "message": "Source-backed runtime artifacts",
+      "items": ["models.json"]
+    },
+    {
+      "label": "manual",
+      "message": "Skills are manifest-only and may require manual installation."
+    }
+  ]
 }
 ```
 
@@ -515,7 +528,7 @@ supercoder-template.ocpkg/
 
 The `workspace/` directory mirrors the source workspace structure. All non-excluded files are included, so the contents vary depending on what lives in the source workspace.
 
-The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, the `grounded` / `inferred` / `unsupported` classification, and which files were included or excluded. The `files/` subdirectory contains only the runtime files that the selected mode is allowed to package.
+The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, compatibility labels, and which files were included or excluded. The `files/` subdirectory contains only the runtime files that the selected mode is allowed to package.
 
 Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
