@@ -1,23 +1,28 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  RUNTIME_ALLOWLIST_DEFAULT,
-  RUNTIME_ALLOWLIST_FULL_EXTRA,
+  RUNTIME_GROUNDED_ARTIFACTS,
+  RUNTIME_INFERRED_ARTIFACTS,
+  RUNTIME_UNSUPPORTED_ARTIFACTS,
   RUNTIME_ALWAYS_EXCLUDE,
   RUNTIME_EXCLUDE_EXTENSIONS,
 } from '../src/core/constants';
 
-test('RUNTIME_ALLOWLIST_DEFAULT includes expected files', () => {
-  assert.ok(RUNTIME_ALLOWLIST_DEFAULT.some((p) => p === 'AGENTS.md'));
-  assert.ok(RUNTIME_ALLOWLIST_DEFAULT.some((p) => p === 'settings.json'));
-  assert.ok(RUNTIME_ALLOWLIST_DEFAULT.some((p) => p === 'prompts/**'));
-  assert.ok(RUNTIME_ALLOWLIST_DEFAULT.some((p) => p === 'themes/**'));
-  assert.ok(RUNTIME_ALLOWLIST_DEFAULT.some((p) => p === 'models.json'));
+test('RUNTIME_GROUNDED_ARTIFACTS includes only source-backed runtime files', () => {
+  assert.ok(RUNTIME_GROUNDED_ARTIFACTS.some((p) => p === 'models.json'));
+  assert.equal(RUNTIME_GROUNDED_ARTIFACTS.includes('settings.json'), false);
+  assert.equal(RUNTIME_GROUNDED_ARTIFACTS.includes('AGENTS.md'), false);
 });
 
-test('RUNTIME_ALLOWLIST_FULL_EXTRA adds skills and extensions', () => {
-  assert.ok(RUNTIME_ALLOWLIST_FULL_EXTRA.some((p) => p === 'skills/**'));
-  assert.ok(RUNTIME_ALLOWLIST_FULL_EXTRA.some((p) => p === 'extensions/**'));
+test('RUNTIME_INFERRED_ARTIFACTS contains convenience-only runtime files', () => {
+  assert.ok(RUNTIME_INFERRED_ARTIFACTS.some((p) => p === 'settings.json'));
+  assert.ok(RUNTIME_INFERRED_ARTIFACTS.some((p) => p === 'prompts/**'));
+  assert.ok(RUNTIME_INFERRED_ARTIFACTS.some((p) => p === 'themes/**'));
+});
+
+test('RUNTIME_UNSUPPORTED_ARTIFACTS contains non-portable capability directories', () => {
+  assert.ok(RUNTIME_UNSUPPORTED_ARTIFACTS.some((p) => p === 'skills/**'));
+  assert.ok(RUNTIME_UNSUPPORTED_ARTIFACTS.some((p) => p === 'extensions/**'));
 });
 
 test('RUNTIME_ALWAYS_EXCLUDE includes auth and session files', () => {

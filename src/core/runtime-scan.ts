@@ -1,14 +1,21 @@
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  RUNTIME_ALLOWLIST_DEFAULT,
-  RUNTIME_ALLOWLIST_FULL_EXTRA,
+  RUNTIME_GROUNDED_ARTIFACTS,
+  RUNTIME_INFERRED_ARTIFACTS,
+  RUNTIME_UNSUPPORTED_ARTIFACTS,
   RUNTIME_ALWAYS_EXCLUDE,
   RUNTIME_EXCLUDE_EXTENSIONS,
 } from './constants';
 import { sanitizeModelsJson } from './models-sanitize';
 import { analyzeSettingsJson } from './settings-analysis';
-import type { ExcludedWorkspaceFile, RuntimeMode, RuntimeScanResult, SettingsAnalysis } from './types';
+import type {
+  ExcludedWorkspaceFile,
+  RuntimeArtifactBuckets,
+  RuntimeMode,
+  RuntimeScanResult,
+  SettingsAnalysis,
+} from './types';
 
 export async function scanRuntime(params: {
   mode: RuntimeMode;
@@ -23,6 +30,7 @@ export async function scanRuntime(params: {
       agentDir,
       includedFiles: [],
       excludedFiles: [],
+      artifacts: emptyRuntimeArtifacts(),
       warnings: [],
       sanitizedModels: undefined,
       settingsAnalysis: undefined,
@@ -36,18 +44,16 @@ export async function scanRuntime(params: {
       agentDir,
       includedFiles: [],
       excludedFiles: [],
+      artifacts: emptyRuntimeArtifacts(),
       warnings: [`agentDir does not exist or is not a directory: ${agentDir}`],
       sanitizedModels: undefined,
       settingsAnalysis: undefined,
     };
   }
 
-  const allowlist = mode === 'full'
-    ? [...RUNTIME_ALLOWLIST_DEFAULT, ...RUNTIME_ALLOWLIST_FULL_EXTRA]
-    : [...RUNTIME_ALLOWLIST_DEFAULT];
-
   const includedFiles: Array<{ relativePath: string; absolutePath: string }> = [];
   const excludedFiles: ExcludedWorkspaceFile[] = [];
+  const artifacts: RuntimeArtifactBuckets = emptyRuntimeArtifacts();
   const warnings: string[] = [];
   const allFiles = await collectFiles(agentDir, '', warnings);
 
@@ -68,19 +74,29 @@ export async function scanRuntime(params: {
       continue;
     }
 
-    if (matchesAllowlist(relativePath, allowlist)) {
-      includedFiles.push({ relativePath, absolutePath });
+    const evidence = classifyRuntimeArtifact(relativePath);
+    if (!evidence) {
       continue;
     }
 
-    if (mode !== 'full' && matchesAllowlist(relativePath, RUNTIME_ALLOWLIST_FULL_EXTRA)) {
-      excludedFiles.push({ relativePath, reason: 'Excluded: requires full mode' });
+    artifacts[evidence].push(relativePath);
+
+    if (evidence === 'unsupported') {
+      excludedFiles.push({ relativePath, reason: 'Excluded: unsupported runtime artifact' });
+      continue;
+    }
+
+    if (shouldIncludeForMode(mode, evidence)) {
+      includedFiles.push({ relativePath, absolutePath });
+    } else {
+      excludedFiles.push({ relativePath, reason: 'Excluded: inferred runtime artifact (requires full mode)' });
     }
   }
 
   let sanitizedModels: Record<string, unknown> | undefined;
   const modelsPath = path.join(agentDir, 'models.json');
-  if (allFiles.includes('models.json') && matchesAllowlist('models.json', allowlist)) {
+  if (allFiles.includes('models.json')) {
+    artifacts.grounded.push('models.json');
     try {
       const raw = await readFile(modelsPath, 'utf8');
       const parsed = JSON.parse(raw);
@@ -113,8 +129,9 @@ export async function scanRuntime(params: {
   return {
     mode,
     agentDir,
-    includedFiles,
-    excludedFiles,
+    includedFiles: includedFiles.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    excludedFiles: excludedFiles.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    artifacts: sortRuntimeArtifacts(artifacts),
     warnings,
     sanitizedModels,
     settingsAnalysis,
@@ -169,6 +186,26 @@ function matchesAllowlist(relativePath: string, allowlist: string[]): boolean {
   return false;
 }
 
+function classifyRuntimeArtifact(relativePath: string): keyof RuntimeArtifactBuckets | undefined {
+  if (matchesAllowlist(relativePath, RUNTIME_GROUNDED_ARTIFACTS)) {
+    return 'grounded';
+  }
+  if (matchesAllowlist(relativePath, RUNTIME_INFERRED_ARTIFACTS)) {
+    return 'inferred';
+  }
+  if (matchesAllowlist(relativePath, RUNTIME_UNSUPPORTED_ARTIFACTS)) {
+    return 'unsupported';
+  }
+  return undefined;
+}
+
+function shouldIncludeForMode(mode: RuntimeMode, evidence: Exclude<keyof RuntimeArtifactBuckets, 'unsupported'>): boolean {
+  if (mode === 'full') {
+    return true;
+  }
+  return evidence === 'grounded';
+}
+
 function isAlwaysExcluded(relativePath: string): boolean {
   for (const pattern of RUNTIME_ALWAYS_EXCLUDE) {
     if (pattern.endsWith('/**')) {
@@ -193,4 +230,20 @@ async function isDirectory(dirPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function emptyRuntimeArtifacts(): RuntimeArtifactBuckets {
+  return {
+    grounded: [],
+    inferred: [],
+    unsupported: [],
+  };
+}
+
+function sortRuntimeArtifacts(artifacts: RuntimeArtifactBuckets): RuntimeArtifactBuckets {
+  return {
+    grounded: [...artifacts.grounded].sort((left, right) => left.localeCompare(right)),
+    inferred: [...artifacts.inferred].sort((left, right) => left.localeCompare(right)),
+    unsupported: [...artifacts.unsupported].sort((left, right) => left.localeCompare(right)),
+  };
 }

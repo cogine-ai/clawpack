@@ -66,6 +66,11 @@ export async function buildRuntimeTestPackage(
     agentDir: options.sourceAgentDir,
     includedFiles: mode === 'none' ? [] : includedFiles,
     excludedFiles: [],
+    artifacts: {
+      grounded: [],
+      inferred: mode === 'none' ? [] : includedFiles,
+      unsupported: [],
+    },
     warnings: [],
     modelsSanitized: false,
     modelsSkipped: true,

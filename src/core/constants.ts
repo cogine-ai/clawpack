@@ -51,15 +51,17 @@ export const SKILL_REFERENCE_PATTERNS = [
   /<name>([a-z0-9][a-z0-9-]*)<\/name>/gi,
 ];
 
-export const RUNTIME_ALLOWLIST_DEFAULT: string[] = [
-  'AGENTS.md',
-  'settings.json',
-  'prompts/**',
-  'themes/**',
+export const RUNTIME_GROUNDED_ARTIFACTS: string[] = [
   'models.json',
 ];
 
-export const RUNTIME_ALLOWLIST_FULL_EXTRA: string[] = [
+export const RUNTIME_INFERRED_ARTIFACTS: string[] = [
+  'settings.json',
+  'prompts/**',
+  'themes/**',
+];
+
+export const RUNTIME_UNSUPPORTED_ARTIFACTS: string[] = [
   'skills/**',
   'extensions/**',
 ];

@@ -82,6 +82,9 @@ export async function runExport(options: ExportOptions): Promise<void> {
     fileCount: result.fileCount,
     runtimeMode: runtimeScan?.mode,
     runtimeFiles: runtimeScan?.includedFiles.map(f => f.relativePath),
+    runtimeGroundedFiles: runtimeScan?.artifacts.grounded,
+    runtimeInferredFiles: runtimeScan?.artifacts.inferred,
+    runtimeUnsupportedFiles: runtimeScan?.artifacts.unsupported,
   };
 
   if (options.json) {
@@ -96,8 +99,12 @@ export async function runExport(options: ExportOptions): Promise<void> {
     `  Files: ${report.fileCount}`,
   ];
   if (runtimeScan && runtimeScan.mode !== 'none') {
+    lines.push('  Runtime contract: grounded=source-backed, inferred=convenience-only, unsupported=not packaged');
     lines.push(`  Runtime mode: ${runtimeScan.mode}`);
     lines.push(`  Runtime files: ${runtimeScan.includedFiles.length}`);
+    lines.push(`  Runtime grounded files: ${runtimeScan.artifacts.grounded.length}`);
+    lines.push(`  Runtime inferred files: ${runtimeScan.artifacts.inferred.length}`);
+    lines.push(`  Runtime unsupported files: ${runtimeScan.artifacts.unsupported.length}`);
   }
   console.log(lines.join('\n'));
 }
@@ -112,7 +119,7 @@ export function registerExportCommand(command: Command): void {
     .option('--agent-id <id>', 'Source agent id override')
     .option(
       '--runtime-mode <mode>',
-      'Runtime layer mode: none (skip), default (settings, prompts, themes, models), or full (adds skills, extensions). Requires a resolvable agentDir in OpenClaw config. Auth and session files are always excluded.',
+      'Runtime layer mode: none (skip), default (grounded source-backed runtime artifacts only), or full (adds inferred convenience files). Unsupported skills/extensions are never packaged. Requires a resolvable agentDir in OpenClaw config. Auth and session files are always excluded.',
     )
     .option('--archive', 'Produce a .ocpkg.tar.gz single-file archive')
     .option('--json', 'Emit the full machine-readable JSON report')

@@ -10,8 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Runtime layer support: `--runtime-mode` flag on `inspect` and `export` commands with three modes — `none`, `default`, and `full` (#38)
-- `default` mode packages `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, and `models.json` from the agent's agentDir (#38)
-- `full` mode additionally packages `skills/**` and `extensions/**` (#38)
+- Runtime layer includes `models.json` sanitization, inferred settings analysis, and packaging metadata for the selected runtime slice (#38)
 - `models.json` sanitization: API keys, secrets, `$secretRef` objects, and secret-bearing headers are stripped before packaging (#38)
 - `settings.json` path analysis: path-like values are classified as workspace-internal, agentDir-internal, relative, external-absolute, or host-bound (#38)
 - Runtime scan with safety exclusions: auth files, session data, toolchain artifacts, and temp/log files are always excluded (#38)
@@ -30,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI help text updated to describe runtime modes, safety boundaries, and default behavior (#40)
 - CLI version aligned with package version (#40)
 - README updated with runtime layer documentation: mode descriptions, exclusion rules, path rewriting, import behavior, and package structure (#40)
+- Runtime artifact handling now classifies detected agentDir files as `grounded`, `inferred`, or `unsupported`; `default` packages only grounded artifacts, `full` adds inferred artifacts, and `skills/**` plus `extensions/**` are no longer bundled (#58)
 
 ### Fixed
 

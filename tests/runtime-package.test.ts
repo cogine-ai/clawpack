@@ -13,11 +13,16 @@ import { createTempWorkspace } from './helpers/workspace-factory';
 
 const tmpBase = path.resolve('tests/tmp/runtime-pkg');
 
-test('writePackageDirectory writes runtime subtree when runtimeScan provided', async () => {
+test('writePackageDirectory writes grounded runtime subtree for default mode', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws'));
   const agentDir = path.join(tmpBase, 'agentdir');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, 'models.json'),
+    JSON.stringify({ models: [{ id: 'gpt-5', apiKey: 'sk-xxx', maxTokens: 4096 }] }),
+    'utf8',
+  );
   await writeFile(path.join(agentDir, 'settings.json'), '{"theme":"dark"}', 'utf8');
   await writeFile(path.join(agentDir, 'AGENTS.md'), '# Agents', 'utf8');
   await mkdir(path.join(agentDir, 'prompts'), { recursive: true });
@@ -42,15 +47,17 @@ test('writePackageDirectory writes runtime subtree when runtimeScan provided', a
   assert.ok(existsSync(path.join(outputPath, 'runtime', 'manifest.json')));
   assert.ok(existsSync(path.join(outputPath, 'runtime', 'checksums.json')));
   assert.ok(existsSync(path.join(outputPath, 'runtime', 'path-rewrites.json')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'AGENTS.md')));
-  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'prompts', 'system.md')));
+  assert.ok(existsSync(path.join(outputPath, 'runtime', 'files', 'models.json')));
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'AGENTS.md')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'settings.json')), false);
+  assert.equal(existsSync(path.join(outputPath, 'runtime', 'files', 'prompts', 'system.md')), false);
 
   const runtimeManifest = JSON.parse(
     await readFile(path.join(outputPath, 'runtime', 'manifest.json'), 'utf8'),
   );
   assert.equal(runtimeManifest.mode, 'default');
-  assert.ok(runtimeManifest.includedFiles.includes('settings.json'));
+  assert.deepEqual(runtimeManifest.artifacts.grounded, ['models.json']);
+  assert.ok(runtimeManifest.artifacts.inferred.includes('settings.json'));
 });
 
 test('writePackageDirectory omits runtime subtree when no runtimeScan', async () => {
@@ -72,7 +79,7 @@ test('writePackageDirectory omits runtime subtree when no runtimeScan', async ()
   assert.equal(existsSync(path.join(outputPath, 'runtime')), false);
 });
 
-test('writePackageDirectory includes settings-analysis.json when analysis exists', async () => {
+test('writePackageDirectory includes settings-analysis.json when full mode includes inferred settings.json', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'ws-sa'));
   const agentDir = path.join(tmpBase, 'agentdir-sa');
   await rm(agentDir, { recursive: true, force: true });
@@ -86,7 +93,7 @@ test('writePackageDirectory includes settings-analysis.json when analysis exists
   const scan = await scanWorkspace(wsPath);
   const skills = await detectSkills(scan);
   const agent = await extractAgentDefinition(wsPath);
-  const runtimeScan = await scanRuntime({ mode: 'default', agentDir, workspacePath: wsPath });
+  const runtimeScan = await scanRuntime({ mode: 'full', agentDir, workspacePath: wsPath });
 
   const outputPath = path.join(tmpBase, 'output-sa.ocpkg');
   await rm(outputPath, { recursive: true, force: true });
@@ -161,6 +168,11 @@ test('writePackageDirectory preserves runtime warnings even when no runtime file
       agentDir: '/tmp/runtime-agent',
       includedFiles: [],
       excludedFiles: [],
+      artifacts: {
+        grounded: [],
+        inferred: [],
+        unsupported: [],
+      },
       warnings: ['models.json contained only secrets — skipped entirely.'],
       sanitizedModels: undefined,
       settingsAnalysis: undefined,
@@ -187,7 +199,7 @@ test('manifest.includes.runtimeMode reflects runtime mode', async () => {
   const agentDir = path.join(tmpBase, 'agentdir-manifest');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
-  await writeFile(path.join(agentDir, 'settings.json'), '{}', 'utf8');
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
 
   const scan = await scanWorkspace(wsPath);
   const skills = await detectSkills(scan);
@@ -216,7 +228,7 @@ test('readPackageDirectory reads runtime subtree when present', async () => {
   const agentDir = path.join(tmpBase, 'agentdir-read');
   await rm(agentDir, { recursive: true, force: true });
   await mkdir(agentDir, { recursive: true });
-  await writeFile(path.join(agentDir, 'settings.json'), '{"theme":"light"}', 'utf8');
+  await writeFile(path.join(agentDir, 'models.json'), '{"models":[{"id":"gpt-5","apiKey":"sk-xxx"}]}', 'utf8');
 
   const scan = await scanWorkspace(wsPath);
   const skills = await detectSkills(scan);
@@ -237,7 +249,7 @@ test('readPackageDirectory reads runtime subtree when present', async () => {
   const pkg = await readPackageDirectory(outputPath);
   assert.ok(pkg.runtimeManifest);
   assert.equal(pkg.runtimeManifest!.mode, 'default');
-  assert.ok(pkg.runtimeManifest!.includedFiles.includes('settings.json'));
+  assert.ok(pkg.runtimeManifest!.includedFiles.includes('models.json'));
 });
 
 test('readPackageDirectory tolerates packages without runtime subtree', async () => {
