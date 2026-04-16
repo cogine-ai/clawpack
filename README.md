@@ -35,9 +35,19 @@ Do **not** treat it as a production-grade backup, archival, or disaster-recovery
 
 Clawpacker uses a **blacklist model** — it includes all files in the workspace (including subdirectories) except those matching explicit exclusion rules.
 
-The following files are recognized as **bootstrap files** and flagged in the manifest:
+The following top-level files are recognized by current OpenClaw docs as **bootstrap files** and are flagged in the manifest when present:
 
 `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
+
+`BOOT.md` is also a documented workspace file, but it is **not** treated as a bootstrap file. If present, clawpacker includes it as a normal workspace file.
+
+For validation purposes, clawpacker only requires the core workspace contract:
+
+`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`
+
+The following OpenClaw workspace files are treated as **optional** and their absence does not make a workspace invalid:
+
+`BOOT.md`, `BOOTSTRAP.md`, `HEARTBEAT.md`, `MEMORY.md`, `memory.md`, `memory/*.md`
 
 All other workspace files are included as well, preserving directory structure.
 
@@ -61,6 +71,8 @@ Clawpacker excludes the following subdirectories if they appear inside the works
 And these file patterns:
 
 - `memory/*.md` daily logs
+
+The `memory/*.md` exclusion is a **clawpacker product policy**, not an OpenClaw workspace requirement. It exists to keep exports conservative and portable by default.
 
 These rules only apply to contents **within** the scanned workspace directory. The parent `~/.openclaw/` installation and its config files are not part of the workspace scan — OpenClaw config is read separately via `--config` or config discovery.
 
@@ -411,7 +423,7 @@ Clawpacker is designed to be conservative.
 ### Export safety
 
 - all workspace files are included except explicitly excluded directories and patterns
-- daily memory logs (`memory/*.md`) are excluded by default
+- daily memory logs (`memory/*.md`) are excluded by default as a clawpacker portability policy
 - package contents are declared in a manifest instead of hidden in opaque state
 - checksums are generated for integrity verification
 - runtime layer is opt-in via `--runtime-mode`
@@ -433,7 +445,7 @@ Clawpacker is designed to be conservative.
 
 Even after a successful import, you should still:
 
-- review `USER.md`, `TOOLS.md`, and `MEMORY.md`
+- review `USER.md` and `TOOLS.md`, plus `MEMORY.md` if present
 - reinstall any required skills manually
 - reconfigure channel bindings and cron jobs manually
 - run `openclaw doctor`

@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { BOOTSTRAP_FILES, EXCLUDED_DIRECTORIES, EXCLUDED_PATTERNS } from './constants';
+import { EXCLUDED_DIRECTORIES, EXCLUDED_PATTERNS, OPENCLAW_BOOTSTRAP_FILES } from './constants';
 import type { WorkspaceScanResult } from './types';
 
 export async function scanWorkspace(workspacePath: string): Promise<WorkspaceScanResult> {
@@ -61,7 +61,7 @@ async function collectFiles(
     }
 
     const absolutePath = path.join(rootPath, relativePath);
-    const isBootstrap = BOOTSTRAP_FILES.has(entry.name) && !relativeDirPath;
+    const isBootstrap = OPENCLAW_BOOTSTRAP_FILES.has(entry.name) && !relativeDirPath;
 
     included.push({ relativePath, absolutePath, isBootstrap });
   }

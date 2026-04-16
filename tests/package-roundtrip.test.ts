@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { REQUIRED_WORKSPACE_FILES } from '../src/core/constants';
 import { readPackageDirectory } from '../src/core/package-read';
+import { scanWorkspace } from '../src/core/workspace-scan';
 import { runCli } from './helpers/run-cli';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
@@ -175,9 +175,8 @@ test('export -> import roundtrip preserves workspace file contents byte-for-byte
     'bytes-test',
   ]);
 
-  const sourceEntries = await readdir(fixture);
-  for (const file of REQUIRED_WORKSPACE_FILES) {
-    if (!sourceEntries.includes(file)) continue;
+  const scan = await scanWorkspace(fixture);
+  for (const file of scan.includedFiles.map((entry) => entry.relativePath)) {
     const original = await readFile(path.join(fixture, file));
     const imported = await readFile(path.join(bytesTargetRoot, file));
     assert.deepEqual(imported, original, `${file} content should be byte-for-byte identical`);

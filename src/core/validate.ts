@@ -2,7 +2,7 @@ import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { readJsonFile } from '../utils/json';
 import { checksumFile } from './checksums';
-import { REQUIRED_WORKSPACE_FILES } from './constants';
+import { OPTIONAL_WORKSPACE_FILES, REQUIRED_WORKSPACE_FILES } from './constants';
 import {
   loadOpenClawConfig,
   resolveAgentFromConfig,
@@ -44,6 +44,12 @@ export async function validateImportedWorkspace(params: {
       report.passed.push(`Workspace file present: ${file}`);
     } else {
       report.failed.push(`Missing required workspace file: ${file}`);
+    }
+  }
+
+  for (const file of OPTIONAL_WORKSPACE_FILES) {
+    if (await pathExists(path.join(targetWorkspacePath, file))) {
+      report.passed.push(`Optional workspace file present: ${file}`);
     }
   }
 
@@ -142,7 +148,7 @@ export async function validateImportedWorkspace(params: {
   );
   report.nextSteps.push('Run `openclaw doctor` and manually verify provider/model availability after import.');
   report.nextSteps.push(
-    'Review imported USER.md, TOOLS.md, and MEMORY.md for target-specific adjustments.',
+    'Review imported USER.md and TOOLS.md, plus MEMORY.md if present, for target-specific adjustments.',
   );
 
   return report;
