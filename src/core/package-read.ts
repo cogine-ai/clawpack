@@ -84,7 +84,6 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   }
 
   manifest.includes.bootstrapFiles ??= [];
-  manifest.includes.bindings ??= false;
   manifest.includes.cronJobs ??= false;
   manifest.excludes.connectionState ??= false;
 
@@ -116,15 +115,10 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
-  const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
+  const bindingHintsPath = path.join(resolvedRoot, 'meta', 'binding-hints.json');
   const cronPath = path.join(resolvedRoot, 'config', 'cron.json');
 
-  let bindings: AgentBindingDefinition[] | undefined;
-  if (manifest.includes.bindings) {
-    bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  } else {
-    bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  }
+  const bindingHints = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingHintsPath);
 
   let cronJobs: CronJobDefinition[] | undefined;
   if (manifest.includes.cronJobs) {
@@ -145,7 +139,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     checksums,
     exportReport,
     workspaceFiles,
-    bindings,
+    bindingHints,
     cronJobs,
     runtimeManifest,
   };

@@ -22,7 +22,7 @@ export async function writePackageArchive(params: {
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
-  bindings?: AgentBindingDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
@@ -54,7 +54,7 @@ export async function writePackageDirectory(params: {
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
-  bindings?: AgentBindingDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
@@ -74,7 +74,9 @@ export async function writePackageDirectory(params: {
 
   const warnings = [
     'Skills are manifest-only and may require manual installation.',
-    'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
+    params.bindingHints && params.bindingHints.length > 0
+      ? 'This clawpacker version does not restore live bindings or scheduled jobs; review meta/binding-hints.json and reapply any source-backed routing bindings manually on the target instance.'
+      : 'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
   ];
 
   const importHints: ImportHints = {
@@ -102,10 +104,14 @@ export async function writePackageDirectory(params: {
   checksums['config/agent.json'] = checksumText(`${agentJson}\n`);
   checksums['config/import-hints.json'] = checksumText(`${importHintsJson}\n`);
 
-  if (params.bindings && params.bindings.length > 0) {
-    const bindingsJson = JSON.stringify(params.bindings, null, 2);
-    await writeFile(path.join(params.outputPath, 'config', 'bindings.json'), `${bindingsJson}\n`, 'utf8');
-    checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
+  if (params.bindingHints && params.bindingHints.length > 0) {
+    const bindingHintsJson = JSON.stringify(params.bindingHints, null, 2);
+    await writeFile(
+      path.join(params.outputPath, 'meta', 'binding-hints.json'),
+      `${bindingHintsJson}\n`,
+      'utf8',
+    );
+    checksums['meta/binding-hints.json'] = checksumText(`${bindingHintsJson}\n`);
   }
 
   if (params.cronJobs && params.cronJobs.length > 0) {
@@ -192,7 +198,6 @@ export async function writePackageDirectory(params: {
     openclawVersion: params.openclawVersion,
     checksums,
     warnings: importHints.warnings,
-    hasBindings: (params.bindings?.length ?? 0) > 0,
     hasCronJobs: (params.cronJobs?.length ?? 0) > 0,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
+import { detectBindingHints, detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
 import { writePackageArchive, writePackageDirectory } from '../core/package-write';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
@@ -36,6 +36,12 @@ export async function runExport(options: ExportOptions): Promise<void> {
     configPath: options.config,
     cwd: scan.workspacePath,
   });
+  const bindingHints = await detectBindingHints({
+    configPath: options.config,
+    cwd: scan.workspacePath,
+    agentId: options.agentId,
+    workspacePath: scan.workspacePath,
+  });
   const packageName =
     options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
 
@@ -68,6 +74,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     skills,
     agentDefinition,
     openclawVersion,
+    bindingHints,
     runtimeScan,
   };
 
@@ -85,6 +92,8 @@ export async function runExport(options: ExportOptions): Promise<void> {
     runtimeGroundedFiles: runtimeScan?.artifacts.grounded,
     runtimeInferredFiles: runtimeScan?.artifacts.inferred,
     runtimeUnsupportedFiles: runtimeScan?.artifacts.unsupported,
+    bindingHintsCount: bindingHints.length,
+    bindingHintsMetadataOnly: bindingHints.length > 0,
   };
 
   if (options.json) {
@@ -105,6 +114,9 @@ export async function runExport(options: ExportOptions): Promise<void> {
     lines.push(`  Runtime grounded files: ${runtimeScan.artifacts.grounded.length}`);
     lines.push(`  Runtime inferred files: ${runtimeScan.artifacts.inferred.length}`);
     lines.push(`  Runtime unsupported files: ${runtimeScan.artifacts.unsupported.length}`);
+  }
+  if (bindingHints.length > 0) {
+    lines.push(`  Binding hints: ${bindingHints.length} source-backed entries captured as metadata only; manual reapply required`);
   }
   console.log(lines.join('\n'));
 }

@@ -22,7 +22,6 @@ export function buildManifest(params: {
   openclawVersion?: string;
   metadata?: PackageManifest['metadata'];
   checksums?: Record<string, string>;
-  hasBindings?: boolean;
   hasCronJobs?: boolean;
   runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
@@ -46,7 +45,6 @@ export function buildManifest(params: {
       dailyMemory: false,
       skills: SKILLS_MODE,
       agentDefinition: true,
-      bindings: params.hasBindings ?? false,
       cronJobs: params.hasCronJobs ?? false,
       runtimeMode: params.runtimeScan?.mode,
       runtimeFiles: params.runtimeScan?.includedFiles.map(f => f.relativePath),
@@ -94,7 +92,6 @@ export function buildExportArtifacts(params: {
   openclawVersion?: string;
   checksums: Record<string, string>;
   warnings?: string[];
-  hasBindings?: boolean;
   hasCronJobs?: boolean;
   runtimeScan?: RuntimeScanResult;
   runtimeManifest?: RuntimeManifest;

@@ -86,6 +86,40 @@ test('inspect without --runtime-mode defaults to resolved runtime mode output', 
   assert.match(stdout, /Runtime mode: default/);
 });
 
+test('inspect reports source-backed binding hints without implying restore support', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'inspect-binding-hints-ws'));
+  const configPath = path.join(tmpBase, 'inspect-binding-hints-config.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agent: {
+        id: 'test-agent',
+        name: 'Test',
+        workspace: wsPath,
+      },
+      bindings: [
+        {
+          agentId: 'test-agent',
+          type: 'route',
+          match: {
+            channel: 'slack',
+          },
+        },
+      ],
+    }),
+    'utf8',
+  );
+
+  const { stdout } = await runCli([
+    'inspect',
+    '--workspace', wsPath,
+    '--config', configPath,
+  ]);
+
+  assert.match(stdout, /Binding hints detected: 1/);
+  assert.match(stdout, /manual reapply required/i);
+});
+
 test('inspect without resolved agentDir still prints resolved runtime mode', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'inspect-ws-no-agentdir-mode'));
   const { stdout } = await runCli([
@@ -204,6 +238,49 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   assert.equal(report.runtimeMode, 'default');
   assert.ok(report.runtimeGroundedFiles.includes('models.json'));
   assert.ok(report.runtimeInferredFiles.includes('settings.json'));
+});
+
+test('export reports source-backed binding hints as metadata only', async () => {
+  const wsPath = await createTempWorkspace(path.join(tmpBase, 'export-binding-hints-ws'));
+  const configPath = path.join(tmpBase, 'export-binding-hints-config.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      agent: {
+        id: 'test-agent',
+        name: 'Test',
+        workspace: wsPath,
+      },
+      bindings: [
+        {
+          agentId: 'test-agent',
+          type: 'route',
+          match: {
+            channel: 'slack',
+            accountId: '*',
+          },
+        },
+      ],
+    }),
+    'utf8',
+  );
+
+  const outputPath = path.join(tmpBase, 'export-binding-hints-output.ocpkg');
+  await rm(outputPath, { recursive: true, force: true });
+
+  const { stdout } = await runCli([
+    'export',
+    '--workspace', wsPath,
+    '--out', outputPath,
+    '--config', configPath,
+    '--json',
+  ]);
+
+  const report = JSON.parse(stdout);
+  assert.equal(report.bindingHintsCount, 1);
+  assert.equal(report.bindingHintsMetadataOnly, true);
+  assert.equal(existsSync(path.join(outputPath, 'meta', 'binding-hints.json')), true);
+  assert.equal(existsSync(path.join(outputPath, 'config', 'bindings.json')), false);
 });
 
 test('export --archive --json reports an existing manifestPath', async () => {

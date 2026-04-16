@@ -124,7 +124,6 @@ export interface PackageManifest {
     dailyMemory: boolean;
     skills: 'manifest-only';
     agentDefinition: boolean;
-    bindings?: boolean;
     cronJobs?: boolean;
     runtimeMode?: RuntimeMode;
     runtimeFiles?: string[];
@@ -183,7 +182,7 @@ export interface ReadPackageResult {
     relativePath: string;
     absolutePath: string;
   }>;
-  bindings?: AgentBindingDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   cronJobs?: CronJobDefinition[];
   runtimeManifest?: RuntimeManifest;
 }

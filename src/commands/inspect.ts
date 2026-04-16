@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { resolveAgentDir } from '../core/openclaw-config';
+import { detectBindingHints, resolveAgentDir } from '../core/openclaw-config';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
@@ -28,6 +28,12 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   const agentDefinition = await extractAgentDefinition(workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
+  });
+  const bindingHints = await detectBindingHints({
+    configPath: options.config,
+    cwd: workspacePath,
+    agentId: options.agentId,
+    workspacePath,
   });
 
   const warnings = [
@@ -70,6 +76,8 @@ export async function runInspect(options: InspectOptions): Promise<void> {
       notes: agentDefinition.notes,
     },
     skills,
+    bindingHintsCount: bindingHints.length,
+    bindingHintsMetadataOnly: bindingHints.length > 0,
     runtime: runtimeResult ? {
       mode: runtimeResult.mode,
       agentDir: runtimeResult.agentDir,
@@ -105,6 +113,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `Skills (workspace): ${skills.workspaceSkills.join(', ') || 'none'}`,
     `Skills (referenced): ${skills.referencedSkills.join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
+    `Binding hints detected: ${bindingHints.length}${bindingHints.length > 0 ? ' (source-backed metadata only; manual reapply required)' : ''}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
     `Runtime mode: ${report.runtimeMode}`,
   ];

@@ -80,7 +80,7 @@ Beyond file-level exclusions, Clawpacker never exports or restores:
 
 - secrets, auth state, cookies, API keys, credentials
 - session/runtime state
-- live channel bindings / routing state
+- live routing bindings / routing state
 - live cron scheduling / scheduled-job registration
 - globally installed skills or extensions
 - machine-specific absolute-path behavior that is not portable
@@ -431,7 +431,7 @@ Instead, it extracts a portable slice of agent config, including:
 
 And it explicitly excludes things like:
 
-- channel bindings
+- live routing bindings as portable config
 - secrets
 - provider/account-specific runtime state
 
@@ -466,11 +466,11 @@ Even after a successful import, you should still:
 
 - review `USER.md` and `TOOLS.md`, plus `MEMORY.md` if present
 - reinstall any required skills manually
-- reconfigure channel bindings and cron jobs manually
+- review `meta/binding-hints.json` if present, then reconfigure routing bindings and cron jobs manually
 - run `openclaw doctor`
 - verify model/provider availability on the target instance
 
-Today, clawpacker does not restore live channel bindings or scheduled jobs. A future version may support portable placeholder-based representations for these areas, but that is different from raw instance-state migration.
+Today, clawpacker does not restore live OpenClaw top-level `bindings[]` entries or scheduled jobs. When source config is available, export may include matching routing entries as source-backed hints in `meta/binding-hints.json`, but those hints are metadata only and must be reapplied manually on the target instance.
 
 Clawpacker packages a portable workspace template plus an optional runtime slice. For full-instance moves or environment repair, follow the official OpenClaw migration flow rather than treating clawpacker as a complete instance backup.
 
@@ -497,6 +497,7 @@ supercoder-template.ocpkg/
     import-hints.json
     skills-manifest.json
   meta/
+    binding-hints.json      # optional source-backed routing hints; metadata only
     checksums.json
     export-report.json
   runtime/                  # present when --runtime-mode is default or full
@@ -524,7 +525,7 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 - full OpenClaw instance backup (the runtime layer is a portable slice, not a full agentDir copy)
 - secret migration (API keys and auth tokens are stripped on export)
 - auth/session migration (auth files are always excluded)
-- raw channel binding export/import
+- automatic routing binding restore
 - raw cron export/import or scheduler registration
 - zero-touch import across mismatched environments
 
