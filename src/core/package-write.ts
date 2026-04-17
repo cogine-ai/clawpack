@@ -70,7 +70,7 @@ export async function writePackageDirectory(params: {
   }
 
   const warnings = [
-    'Skills are manifest-only and may require manual installation.',
+    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
     'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
   ];
 

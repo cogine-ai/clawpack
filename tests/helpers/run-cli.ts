@@ -16,10 +16,16 @@ export const runCliExecOptions = {
   },
 };
 
-export async function runCli(args: string[]) {
+export async function runCli(args: string[], overrides: { env?: NodeJS.ProcessEnv } = {}) {
   return execFileAsync(
     process.execPath,
     ['--import', 'tsx', 'src/cli.ts', ...args],
-    runCliExecOptions,
+    {
+      ...runCliExecOptions,
+      env: {
+        ...runCliExecOptions.env,
+        ...overrides.env,
+      },
+    },
   );
 }

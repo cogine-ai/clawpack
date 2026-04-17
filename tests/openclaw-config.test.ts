@@ -848,8 +848,9 @@ test('inspect command defaults to human-readable output and supports --json', as
   );
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
-  assert.deepEqual(report.skills.referencedSkills, ['brainstorming']);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
+  assert.equal(report.skills.mode, 'topology-snapshot');
+  assert.ok(Array.isArray(report.skills.roots));
+  assert.ok(report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')));
 });
 
 // --- CLI integration: export/import/validate with config ---
