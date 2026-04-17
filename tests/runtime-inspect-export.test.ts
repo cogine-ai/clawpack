@@ -8,6 +8,13 @@ import { runCli } from './helpers/run-cli';
 
 const tmpBase = path.resolve('tests/tmp/runtime-cli');
 
+function getCompatibilityBlock(output: string): string {
+  const lines = output.split('\n');
+  const start = lines.findIndex((line) => /Compatibility labels:/i.test(line));
+  assert.notEqual(start, -1, 'Compatibility labels block should be present');
+  return lines.slice(start, start + 5).join('\n');
+}
+
 test('inspect --runtime-mode default shows runtime section in human output', async () => {
   const wsPath = await createTempWorkspace(path.join(tmpBase, 'inspect-ws'));
   const agentDir = path.join(tmpBase, 'inspect-agentdir');
@@ -37,10 +44,14 @@ test('inspect --runtime-mode default shows runtime section in human output', asy
     '--runtime-mode', 'default',
   ]);
   assert.match(stdout, /Runtime mode: default/);
-  assert.match(stdout, /Runtime grounded files/i);
+  const compatibilityBlock = getCompatibilityBlock(stdout);
+  assert.match(compatibilityBlock, /Compatibility labels:/i);
+  assert.match(compatibilityBlock, /^\s+official:/m);
   assert.match(stdout, /models\.json/);
-  assert.match(stdout, /Runtime inferred files/i);
+  assert.match(compatibilityBlock, /^\s+inferred:/m);
   assert.match(stdout, /settings\.json/);
+  assert.match(compatibilityBlock, /^\s+manual:/m);
+  assert.match(compatibilityBlock, /^\s+unsupported:/m);
   assert.doesNotMatch(stdout, /Runtime grounded files .*AGENTS\.md/i);
 });
 
@@ -78,6 +89,23 @@ test('inspect --runtime-mode default --json includes runtime data', async () => 
   assert.ok(Array.isArray(report.runtime.includedFiles));
   assert.ok(Array.isArray(report.runtime.artifacts.grounded));
   assert.ok(report.runtime.artifacts.inferred.includes('settings.json'));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'official' && entry.items?.includes('models.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'inferred' && entry.items?.includes('settings.json')),
+  );
+  assert.ok(
+    report.compatibility.every((entry: { label: string; message: string }) =>
+      entry.label !== 'manual' ||
+      (
+        !entry.message.includes('Skills are manifest-only') &&
+        !entry.message.includes('reconfigure them manually on the target instance')
+      )),
+  );
 });
 
 test('inspect without --runtime-mode defaults to resolved runtime mode output', async () => {
@@ -204,6 +232,23 @@ test('export --runtime-mode default --json includes runtime in report', async ()
   assert.equal(report.runtimeMode, 'default');
   assert.ok(report.runtimeGroundedFiles.includes('models.json'));
   assert.ok(report.runtimeInferredFiles.includes('settings.json'));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'official' && entry.items?.includes('models.json')),
+  );
+  assert.ok(
+    report.compatibility.some((entry: { label: string; items?: string[] }) =>
+      entry.label === 'inferred' && entry.items?.includes('settings.json')),
+  );
+  assert.ok(
+    report.compatibility.every((entry: { label: string; message: string }) =>
+      entry.label !== 'manual' ||
+      (
+        !entry.message.includes('Skills are manifest-only') &&
+        !entry.message.includes('reconfigure them manually on the target instance')
+      )),
+  );
 });
 
 test('export --archive --json reports an existing manifestPath', async () => {

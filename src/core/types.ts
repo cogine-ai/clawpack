@@ -136,12 +136,30 @@ export interface AgentBindingDefinition {
   acp?: Record<string, unknown>;
 }
 
+/** All fields optional: clawpack transports cron definitions as-is from the source config without runtime validation. */
+export interface CronJobDefinition {
+  agentId?: string;
+  schedule?: string;
+  sessionTarget?: string;
+  payload?: Record<string, unknown>;
+  delivery?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface ImportHints {
   requiredInputs: Array<{
     key: 'agentId' | 'targetWorkspacePath';
     reason: string;
   }>;
   warnings: string[];
+}
+
+export type CompatibilityLabel = 'official' | 'inferred' | 'manual' | 'unsupported';
+
+export interface CompatibilityEntry {
+  label: CompatibilityLabel;
+  message: string;
+  items?: string[];
 }
 
 export interface PackageManifest {
@@ -174,6 +192,7 @@ export interface PackageManifest {
     skills: SkillsMode;
     agentDefinition: boolean;
     bindings?: boolean;
+    cronJobs?: boolean;
     runtimeMode?: RuntimeMode;
     runtimeFiles?: string[];
   };
@@ -187,6 +206,7 @@ export interface PackageManifest {
   compatibility: {
     minFormatVersion: number;
     notes: string[];
+    labels?: CompatibilityEntry[];
   };
 }
 
@@ -199,6 +219,7 @@ export interface ExportReport {
   warnings: string[];
   skills: SkillsManifest;
   runtime?: RuntimeManifest;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface ExportArtifacts {
@@ -316,6 +337,7 @@ export interface ValidationReport {
   warnings: string[];
   failed: string[];
   nextSteps: string[];
+  compatibility?: CompatibilityEntry[];
 }
 
 export type RuntimeMode = 'none' | 'default' | 'full';
@@ -335,6 +357,7 @@ export interface RuntimeScanResult {
   warnings: string[];
   sanitizedModels: Record<string, unknown> | undefined;
   settingsAnalysis: SettingsAnalysis | undefined;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface RuntimeManifest {
@@ -347,6 +370,7 @@ export interface RuntimeManifest {
   modelsSanitized: boolean;
   modelsSkipped: boolean;
   settingsAnalysisIncluded: boolean;
+  compatibility?: CompatibilityEntry[];
 }
 
 export type SettingsPathClassification =

@@ -32,7 +32,7 @@ test('export command writes package directory structure and excludes daily memor
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
   assert.equal(manifest.includes.skills, 'topology-snapshot');
-  assert.equal('cronJobs' in manifest.includes, false);
+  assert.equal(manifest.includes.cronJobs, false);
   assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
   assert.equal(typeof manifest.metadata.createdBy.version, 'string');

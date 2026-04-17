@@ -2,10 +2,12 @@ import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createArchive, deriveArchivePath } from './archive';
 import { checksumFile, checksumText } from './checksums';
+import { buildRuntimeCompatibility } from './compatibility';
 import { buildExportArtifacts } from './manifest';
 import type {
   AgentBindingDefinition,
   AgentDefinition,
+  CronJobDefinition,
   ExportPackageResult,
   ImportHints,
   RuntimeManifest,
@@ -22,6 +24,7 @@ export async function writePackageArchive(params: {
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
+  cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   const archivePath = deriveArchivePath(params.outputPath);
@@ -53,6 +56,7 @@ export async function writePackageDirectory(params: {
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
   bindings?: AgentBindingDefinition[];
+  cronJobs?: CronJobDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   await rm(params.outputPath, { recursive: true, force: true });
@@ -69,10 +73,20 @@ export async function writePackageDirectory(params: {
     checksums[path.posix.join('workspace', file.relativePath)] = await checksumFile(targetPath);
   }
 
-  const warnings = [
-    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
-    'This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.',
-  ];
+  const warnings: string[] = [];
+  const hasBindings = (params.bindings?.length ?? 0) > 0;
+  const hasCronJobs = (params.cronJobs?.length ?? 0) > 0;
+  const hasNonPortableVisibleSkills = params.skills.effectiveSkills
+    .some((skill) => skill.status === 'visible' && skill.portability !== 'portable');
+
+  if (hasNonPortableVisibleSkills) {
+    warnings.push(
+      'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+    );
+  }
+  if (hasBindings || hasCronJobs) {
+    warnings.push('This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.');
+  }
 
   const importHints: ImportHints = {
     requiredInputs: [
@@ -103,6 +117,12 @@ export async function writePackageDirectory(params: {
     const bindingsJson = JSON.stringify(params.bindings, null, 2);
     await writeFile(path.join(params.outputPath, 'config', 'bindings.json'), `${bindingsJson}\n`, 'utf8');
     checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
+  }
+
+  if (params.cronJobs && params.cronJobs.length > 0) {
+    const cronJson = JSON.stringify(params.cronJobs, null, 2);
+    await writeFile(path.join(params.outputPath, 'config', 'cron.json'), `${cronJson}\n`, 'utf8');
+    checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
   }
 
   let runtimeManifestData: RuntimeManifest | undefined;
@@ -152,6 +172,7 @@ export async function writePackageDirectory(params: {
         !runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
         runtimeScan.warnings.some(w => w.includes('models.json')),
       settingsAnalysisIncluded: runtimeScan.settingsAnalysis !== undefined,
+      compatibility: runtimeScan.compatibility ?? buildRuntimeCompatibility(runtimeScan.artifacts, runtimeScan.warnings),
     };
 
     const runtimeManifestJson = JSON.stringify(runtimeManifestData, null, 2);
@@ -183,7 +204,8 @@ export async function writePackageDirectory(params: {
     openclawVersion: params.openclawVersion,
     checksums,
     warnings: importHints.warnings,
-    hasBindings: (params.bindings?.length ?? 0) > 0,
+    hasBindings,
+    hasCronJobs,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,
   });

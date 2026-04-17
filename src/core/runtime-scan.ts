@@ -7,6 +7,7 @@ import {
   RUNTIME_ALWAYS_EXCLUDE,
   RUNTIME_EXCLUDE_EXTENSIONS,
 } from './constants';
+import { buildRuntimeCompatibility } from './compatibility';
 import { sanitizeModelsJson } from './models-sanitize';
 import { analyzeSettingsJson } from './settings-analysis';
 import type {
@@ -34,6 +35,7 @@ export async function scanRuntime(params: {
       warnings: [],
       sanitizedModels: undefined,
       settingsAnalysis: undefined,
+      compatibility: [],
     };
   }
 
@@ -48,6 +50,7 @@ export async function scanRuntime(params: {
       warnings: [`agentDir does not exist or is not a directory: ${agentDir}`],
       sanitizedModels: undefined,
       settingsAnalysis: undefined,
+      compatibility: buildRuntimeCompatibility(emptyRuntimeArtifacts(), [`agentDir does not exist or is not a directory: ${agentDir}`]),
     };
   }
 
@@ -126,15 +129,18 @@ export async function scanRuntime(params: {
     }
   }
 
+  const sortedArtifacts = sortRuntimeArtifacts(artifacts);
+
   return {
     mode,
     agentDir,
     includedFiles: includedFiles.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
     excludedFiles: excludedFiles.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
-    artifacts: sortRuntimeArtifacts(artifacts),
+    artifacts: sortedArtifacts,
     warnings,
     sanitizedModels,
     settingsAnalysis,
+    compatibility: buildRuntimeCompatibility(sortedArtifacts, warnings),
   };
 }
 

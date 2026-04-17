@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,14 +11,27 @@ import { detectSkills } from '../src/core/skills-detect';
 import { scanWorkspace } from '../src/core/workspace-scan';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
-const packageRoot = path.resolve('tests/tmp/planning-fixture.ocpkg');
-const targetRoot = path.resolve('tests/tmp/import-plan-target');
+const fixtureConfig = path.resolve('tests/fixtures/openclaw-config/source-config.jsonc');
+const fixtureHome = path.resolve('tests/fixtures/fake-home');
+
+async function makeTempDir(prefix: string) {
+  return mkdtemp(path.join(tmpdir(), `clawpack-${prefix}-`));
+}
 
 async function buildFixturePackage() {
+  const packageParent = await makeTempDir('planning-fixture');
+  const packageRoot = path.join(packageParent, 'planning-fixture.ocpkg');
   await rm(packageRoot, { recursive: true, force: true });
   const scan = await scanWorkspace(fixture);
-  const skills = await detectSkills(scan);
-  const agentDefinition = await extractAgentDefinition(fixture);
+  const skills = await detectSkills(scan, {
+    configPath: fixtureConfig,
+    agentId: 'supercoder',
+    homePath: fixtureHome,
+  });
+  const agentDefinition = await extractAgentDefinition(fixture, {
+    configPath: fixtureConfig,
+    agentId: 'supercoder',
+  });
   await writePackageDirectory({
     outputPath: packageRoot,
     packageName: 'planning-fixture',
@@ -31,6 +44,10 @@ async function buildFixturePackage() {
 
 test('planImport requires target inputs and warns about v1 manual follow-up', async () => {
   const pkg = await buildFixturePackage();
+  pkg.importHints.warnings = [
+    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+  ];
+  const targetRoot = await makeTempDir('import-plan-target');
   const plan = await planImport({
     pkg,
     targetWorkspacePath: targetRoot,
@@ -48,6 +65,7 @@ test('planImport requires target inputs and warns about v1 manual follow-up', as
 
 test('planImport refuses collisions by default and only allows overwrite with --force', async () => {
   const pkg = await buildFixturePackage();
+  const targetRoot = await makeTempDir('import-plan-target');
   await rm(targetRoot, { recursive: true, force: true });
   await mkdir(targetRoot, { recursive: true });
   await writeFile(path.join(targetRoot, 'AGENTS.md'), '# existing\n', 'utf8');
