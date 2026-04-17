@@ -72,7 +72,7 @@ export async function writePackageDirectory(params: {
   const warnings = [
     'Skills are manifest-only and may require manual installation.',
     params.bindingHints && params.bindingHints.length > 0
-      ? 'This clawpacker version does not restore live bindings or scheduled jobs; review meta/binding-hints.json and reapply any source-backed routing bindings manually on the target instance.'
+      ? 'This clawpacker version does not restore live bindings or scheduled jobs; after import, review .openclaw-agent-package/binding-hints.json on the target instance and reapply any source-backed routing bindings manually.'
       : 'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
   ];
 

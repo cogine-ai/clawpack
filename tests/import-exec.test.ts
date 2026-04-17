@@ -197,20 +197,21 @@ test('Without targetConfigPath - config is not written, metadataFiles does not c
 test('binding hints metadata is copied into import metadata directory when present', async () => {
   const pkgRoot = path.join(tmpBase, 'binding-hints', 'fixture.ocpkg');
   const targetWorkspace = path.join(tmpBase, 'binding-hints', 'target');
+  const bindingHints = [
+    {
+      agentId: 'binding-hints-agent',
+      type: 'route',
+      match: {
+        channel: 'slack',
+        accountId: '*',
+      },
+    },
+  ];
 
   const pkg = await buildTestPackage(fixtureWorkspace, pkgRoot, {
     packageName: 'binding-hints-pkg',
     agentId: 'binding-hints-agent',
-    bindingHints: [
-      {
-        agentId: 'binding-hints-agent',
-        type: 'route',
-        match: {
-          channel: 'slack',
-          accountId: '*',
-        },
-      },
-    ],
+    bindingHints,
   });
 
   const plan = (await planImport({
@@ -227,7 +228,6 @@ test('binding hints metadata is copied into import metadata directory when prese
   );
 
   const stored = JSON.parse(await readFile(bindingHintsPath, 'utf8'));
-  assert.equal(stored.length, 1);
-  assert.equal(stored[0].agentId, 'binding-hints-agent');
+  assert.deepEqual(stored, bindingHints);
   assert.ok(result.metadataFiles.some((file) => file.endsWith('binding-hints.json')));
 });

@@ -115,9 +115,18 @@ test('inspect reports source-backed binding hints without implying restore suppo
     '--workspace', wsPath,
     '--config', configPath,
   ]);
+  const { stdout: jsonStdout } = await runCli([
+    'inspect',
+    '--workspace', wsPath,
+    '--config', configPath,
+    '--json',
+  ]);
+  const report = JSON.parse(jsonStdout);
 
   assert.match(stdout, /Binding hints detected: 1/);
   assert.match(stdout, /manual reapply required/i);
+  assert.equal(report.bindingHintsCount, 1);
+  assert.equal(report.bindingHintsMetadataOnly, true);
 });
 
 test('inspect without resolved agentDir still prints resolved runtime mode', async () => {

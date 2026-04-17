@@ -52,8 +52,13 @@ export async function detectBindingHints(params: {
       workspacePath: params.workspacePath,
       agentId: params.agentId,
     });
-  } catch {
-    return [];
+  } catch (err) {
+    if (isMissingOpenClawConfigError(err)) {
+      return [];
+    }
+
+    console.error('Failed to detect OpenClaw binding hints:', err);
+    throw err;
   }
 }
 
@@ -400,11 +405,17 @@ function parseConfigFile(value: string): unknown {
   return JSON5.parse(value);
 }
 
+function isMissingOpenClawConfigError(err: unknown): boolean {
+  return (
+    (err as NodeJS.ErrnoException | undefined)?.code === 'ENOENT' ||
+    (err instanceof Error && err.message.startsWith('OpenClaw config not found.'))
+  );
+}
+
 function isBindingHint(value: unknown): value is AgentBindingDefinition {
   if (!isPlainObject(value)) return false;
   if (typeof value.agentId !== 'string' || value.agentId.trim() === '') return false;
-  if (!isPlainObject(value.match)) return false;
-  return typeof value.match.channel === 'string' && value.match.channel.trim() !== '';
+  return isPlainObject(value.match);
 }
 
 function extractOpenClawVersion(config: MinimalOpenClawConfig): string | undefined {

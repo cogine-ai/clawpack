@@ -466,11 +466,11 @@ Even after a successful import, you should still:
 
 - review `USER.md` and `TOOLS.md`, plus `MEMORY.md` if present
 - reinstall any required skills manually
-- review imported binding hints metadata if present after import, or `meta/binding-hints.json` in the source package, then reconfigure routing bindings and any scheduled jobs manually
+- review imported binding hints metadata at `.openclaw-agent-package/binding-hints.json` after import, or `meta/binding-hints.json` in the source package before import, then reconfigure routing bindings and any scheduled jobs manually
 - run `openclaw doctor`
 - verify model/provider availability on the target instance
 
-Today, clawpacker does not package or restore live OpenClaw top-level `bindings[]` entries or scheduled jobs. There is no `config/cron.json` portability contract in the package format. When source config is available, export may include matching routing entries as source-backed hints in `meta/binding-hints.json`, and import preserves those hints in local import metadata; they remain metadata only and must be reapplied manually on the target instance.
+Today, clawpacker does not package or restore live OpenClaw top-level `bindings[]` entries or scheduled jobs. There is no `config/cron.json` portability contract in the package format. When source config is available, export may include matching routing entries as source-backed hints in `meta/binding-hints.json`, and import preserves those hints in `.openclaw-agent-package/binding-hints.json`; they remain metadata only and must be reapplied manually on the target instance.
 
 Clawpacker packages a portable workspace template plus an optional runtime slice. For full-instance moves or environment repair, follow the official OpenClaw migration flow rather than treating clawpacker as a complete instance backup.
 
