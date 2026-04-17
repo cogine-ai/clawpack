@@ -30,7 +30,6 @@ export function buildManifest(params: {
   metadata?: PackageManifest['metadata'];
   checksums?: Record<string, string>;
   hasBindings?: boolean;
-  hasCronJobs?: boolean;
   warnings?: string[];
   runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
@@ -38,7 +37,6 @@ export function buildManifest(params: {
   const compatibility = buildPackageCompatibility({
     skills: params.skills,
     hasBindings: params.hasBindings ?? false,
-    hasCronJobs: params.hasCronJobs ?? false,
     runtimeCompatibility: params.runtimeScan?.compatibility,
     runtimeArtifacts: params.runtimeScan?.artifacts,
     runtimeWarnings: params.runtimeScan?.warnings,
@@ -86,13 +84,11 @@ export function buildExportReport(params: {
   skills: SkillsManifest;
   warnings?: string[];
   hasBindings?: boolean;
-  hasCronJobs?: boolean;
   runtimeManifest?: RuntimeManifest;
 }): ExportReport {
   const compatibility = buildPackageCompatibility({
     skills: params.skills,
     hasBindings: params.hasBindings ?? false,
-    hasCronJobs: params.hasCronJobs ?? false,
     runtimeCompatibility: params.runtimeManifest?.compatibility,
     runtimeArtifacts: params.runtimeManifest?.artifacts,
     runtimeWarnings: params.runtimeManifest?.warnings,
@@ -124,7 +120,6 @@ export function buildExportArtifacts(params: {
   checksums: Record<string, string>;
   warnings?: string[];
   hasBindings?: boolean;
-  hasCronJobs?: boolean;
   runtimeScan?: RuntimeScanResult;
   runtimeManifest?: RuntimeManifest;
 }): ExportArtifacts {
@@ -154,7 +149,6 @@ function buildPackageMetadata(checksums: Record<string, string>): NonNullable<Pa
 function buildPackageCompatibility(params: {
   skills: SkillsManifest;
   hasBindings: boolean;
-  hasCronJobs: boolean;
   runtimeCompatibility?: CompatibilityEntry[];
   runtimeArtifacts?: RuntimeScanResult['artifacts'];
   runtimeWarnings?: string[];
@@ -163,9 +157,6 @@ function buildPackageCompatibility(params: {
   const manualMessages = [...(params.manualMessages ?? [])];
   if (params.hasBindings) {
     manualMessages.push('Channel bindings require manual reconfiguration on the target instance.');
-  }
-  if (params.hasCronJobs) {
-    manualMessages.push('Scheduled jobs require manual reconfiguration on the target instance.');
   }
 
   return mergeCompatibilityEntries(

@@ -83,6 +83,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   }
 
   manifest.includes.bootstrapFiles ??= [];
+  delete (manifest.includes as { cronJobs?: unknown }).cronJobs;
   manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
