@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {
+  CompatibilityEntry,
   RuntimeArtifactBuckets,
   RuntimeManifest,
   RuntimeMode,
@@ -29,10 +30,18 @@ test('RuntimeManifest structure is valid', () => {
     modelsSanitized: true,
     modelsSkipped: false,
     settingsAnalysisIncluded: false,
+    compatibility: [
+      {
+        label: 'official',
+        message: 'Source-backed runtime artifacts',
+        items: ['models.json'],
+      },
+    ],
   };
   assert.equal(manifest.mode, 'default');
   assert.equal(manifest.includedFiles.length, 1);
   assert.equal(manifest.artifacts.inferred.length, 1);
+  assert.equal(manifest.compatibility?.[0]?.label, 'official');
 });
 
 test('RuntimeScanResult structure is valid', () => {
@@ -49,10 +58,18 @@ test('RuntimeScanResult structure is valid', () => {
     warnings: [],
     sanitizedModels: { models: [{ id: 'gpt-5' }] },
     settingsAnalysis: undefined,
+    compatibility: [
+      {
+        label: 'official',
+        message: 'Source-backed runtime artifacts',
+        items: ['models.json'],
+      },
+    ],
   };
   assert.equal(result.mode, 'default');
   assert.equal(result.includedFiles.length, 1);
   assert.equal(result.artifacts.grounded[0], 'models.json');
+  assert.equal(result.compatibility?.[0]?.label, 'official');
 });
 
 test('RuntimeArtifactBuckets groups runtime evidence levels', () => {
@@ -85,4 +102,15 @@ test('SettingsAnalysis structure is valid', () => {
   };
   assert.equal(analysis.pathRefs.length, 1);
   assert.equal(analysis.summary.externalAbsolute, 1);
+});
+
+test('CompatibilityEntry label type accepts the supported labels', () => {
+  const entries: CompatibilityEntry[] = [
+    { label: 'official', message: 'Source-backed runtime artifacts', items: ['models.json'] },
+    { label: 'inferred', message: 'Inferred runtime artifacts', items: ['settings.json'] },
+    { label: 'manual', message: 'Install required skills manually.' },
+    { label: 'unsupported', message: 'Skill implementations are not bundled.' },
+  ];
+
+  assert.equal(entries.length, 4);
 });

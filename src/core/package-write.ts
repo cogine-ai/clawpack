@@ -2,6 +2,7 @@ import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createArchive, deriveArchivePath } from './archive';
 import { checksumFile, checksumText } from './checksums';
+import { buildRuntimeCompatibility } from './compatibility';
 import { buildExportArtifacts } from './manifest';
 import type {
   AgentBindingDefinition,
@@ -69,12 +70,21 @@ export async function writePackageDirectory(params: {
     checksums[path.posix.join('workspace', file.relativePath)] = await checksumFile(targetPath);
   }
 
-  const warnings = [
-    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
-    params.bindingHints && params.bindingHints.length > 0
+  const warnings: string[] = [];
+  const hasBindings = (params.bindingHints?.length ?? 0) > 0;
+  const hasNonPortableVisibleSkills = params.skills.effectiveSkills
+    .some((skill) => skill.status === 'visible' && skill.portability !== 'portable');
+
+  if (hasNonPortableVisibleSkills) {
+    warnings.push(
+      'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+    );
+  }
+  warnings.push(
+    hasBindings
       ? 'This clawpacker version does not restore live bindings or scheduled jobs; after import, review .openclaw-agent-package/binding-hints.json on the target instance and reapply any source-backed routing bindings manually.'
       : 'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
-  ];
+  );
 
   const importHints: ImportHints = {
     requiredInputs: [
@@ -158,6 +168,7 @@ export async function writePackageDirectory(params: {
         !runtimeScan.includedFiles.some(f => f.relativePath === 'models.json') &&
         runtimeScan.warnings.some(w => w.includes('models.json')),
       settingsAnalysisIncluded: runtimeScan.settingsAnalysis !== undefined,
+      compatibility: runtimeScan.compatibility ?? buildRuntimeCompatibility(runtimeScan.artifacts, runtimeScan.warnings),
     };
 
     const runtimeManifestJson = JSON.stringify(runtimeManifestData, null, 2);
@@ -189,6 +200,7 @@ export async function writePackageDirectory(params: {
     openclawVersion: params.openclawVersion,
     checksums,
     warnings: importHints.warnings,
+    hasBindings,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,
   });

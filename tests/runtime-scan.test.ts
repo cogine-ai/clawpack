@@ -129,6 +129,11 @@ test('scanRuntime records excluded models.json when parsing fails', async () => 
   const result = await scanRuntime({ mode: 'default', agentDir, workspacePath: '/tmp/ws' });
   assert.equal(result.sanitizedModels, undefined);
   assert.ok(result.warnings.some(w => /models\.json could not be parsed/i.test(w)));
+  assert.ok(
+    result.compatibility?.some(
+      (entry) => entry.label === 'manual' && /models\.json could not be parsed/i.test(entry.message),
+    ),
+  );
   assert.ok(result.excludedFiles.some(f => f.relativePath === 'models.json' && /parse/i.test(f.reason)));
 });
 

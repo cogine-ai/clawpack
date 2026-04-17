@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Command } from 'commander';
+import { renderCompatibilityLines } from '../core/compatibility';
 import { validateImportedWorkspace } from '../core/validate';
 import { pushSection } from '../utils/output';
 
@@ -34,6 +35,7 @@ export async function runValidate(options: ValidateOptions): Promise<void> {
   pushSection(lines, 'Warnings', report.warnings);
   pushSection(lines, 'Failed', report.failed);
   pushSection(lines, 'Next steps', report.nextSteps);
+  lines.push('', ...renderCompatibilityLines(report.compatibility ?? []));
 
   console.log(lines.join('\n'));
 }

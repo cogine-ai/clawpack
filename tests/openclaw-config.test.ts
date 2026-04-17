@@ -850,7 +850,8 @@ test('inspect command defaults to human-readable output and supports --json', as
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
   assert.equal(report.skills.mode, 'topology-snapshot');
   assert.ok(Array.isArray(report.skills.roots));
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')));
+  assert.ok(!report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')));
+  assert.ok(report.skills.notes.some((note: string) => note.includes('Skill topology is a source-backed snapshot')));
 });
 
 // --- CLI integration: export/import/validate with config ---

@@ -2,6 +2,11 @@ import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { readJsonFile } from '../utils/json';
 import { checksumFile } from './checksums';
+import {
+  buildManualCompatibility,
+  buildUnsupportedCompatibility,
+  mergeCompatibilityEntries,
+} from './compatibility';
 import { OPTIONAL_WORKSPACE_FILES, REQUIRED_WORKSPACE_FILES } from './constants';
 import {
   loadOpenClawConfig,
@@ -36,6 +41,7 @@ export async function validateImportedWorkspace(params: {
     report.passed.push(`Workspace exists: ${targetWorkspacePath}`);
   } else {
     report.failed.push(`Workspace is missing: ${targetWorkspacePath}`);
+    assignCompatibility(report);
     return report;
   }
 
@@ -152,6 +158,7 @@ export async function validateImportedWorkspace(params: {
   report.nextSteps.push(
     'Review imported USER.md and TOOLS.md, plus MEMORY.md if present, for target-specific adjustments.',
   );
+  assignCompatibility(report);
 
   return report;
 }
@@ -340,4 +347,17 @@ function getExpectedFilesFromChecksums(
     .filter((key) => key.startsWith(keyPrefix))
     .map((key) => key.slice(keyPrefix.length))
     .sort((a, b) => a.localeCompare(b));
+}
+
+function assignCompatibility(report: ValidationReport): void {
+  report.compatibility = mergeCompatibilityEntries(
+    buildUnsupportedCompatibility([
+      'Skill implementations are manifest-only and are not restored by validation.',
+      'Live bindings and scheduled jobs are not restored by clawpacker.',
+    ]),
+    buildManualCompatibility([
+      ...report.warnings,
+      ...report.nextSteps,
+    ]),
+  );
 }
