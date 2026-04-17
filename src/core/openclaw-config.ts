@@ -454,10 +454,7 @@ function parseConfigFile(value: string): unknown {
 }
 
 function isMissingOpenClawConfigError(err: unknown): boolean {
-  return (
-    (err as NodeJS.ErrnoException | undefined)?.code === 'ENOENT' ||
-    (err instanceof Error && err.message.startsWith('OpenClaw config not found.'))
-  );
+  return err instanceof Error && err.message.startsWith('OpenClaw config not found.');
 }
 
 function isBindingHint(value: unknown): value is AgentBindingDefinition {
