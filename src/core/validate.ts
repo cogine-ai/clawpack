@@ -148,7 +148,9 @@ export async function validateImportedWorkspace(params: {
     });
   }
 
-  report.warnings.push('Skills are manifest-only and may require manual installation.');
+  report.warnings.push(
+    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+  );
   report.nextSteps.push(
     'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
   );

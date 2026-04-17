@@ -44,10 +44,11 @@ export function buildRuntimeCompatibility(
 }
 
 export function buildSkillsCompatibility(skills: SkillsManifest): CompatibilityEntry[] {
-  const detected = sortUnique([
-    ...skills.workspaceSkills,
-    ...skills.referencedSkills,
-  ]);
+  const detected = sortUnique(
+    skills.effectiveSkills
+      .filter((skill) => skill.status === 'visible' && skill.portability !== 'portable')
+      .map((skill) => skill.skillKey),
+  );
 
   if (detected.length === 0) {
     return [];
@@ -56,12 +57,12 @@ export function buildSkillsCompatibility(skills: SkillsManifest): CompatibilityE
   return sortCompatibilityEntries([
     {
       label: 'unsupported',
-      message: 'Skill implementations are manifest-only and are not bundled',
+      message: 'Visible non-portable skills are not bundled in the exported package',
       items: detected,
     },
     {
       label: 'manual',
-      message: 'Install required skills manually on the target OpenClaw instance',
+      message: 'Reinstall or reconfigure non-portable visible skills on the target OpenClaw host',
       items: detected,
     },
   ]);

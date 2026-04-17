@@ -29,6 +29,26 @@ export interface MinimalOpenClawConfig {
     name?: string;
     [key: string]: unknown;
   };
+  skills?: {
+    allowBundled?: string[];
+    load?: {
+      extraDirs?: string[];
+      [key: string]: unknown;
+    };
+    entries?: Record<string, Record<string, unknown>>;
+    [key: string]: unknown;
+  };
+  plugins?: {
+    enabled?: boolean;
+    load?: {
+      paths?: string[];
+      [key: string]: unknown;
+    };
+    allow?: string[];
+    deny?: string[];
+    entries?: Record<string, Record<string, unknown>>;
+    [key: string]: unknown;
+  };
   agent?: AgentConfigEntry;
   agents?: {
     defaults?: Record<string, unknown>;
@@ -57,6 +77,12 @@ type ResolvedPortableAgentEntry = ResolvedAgentEntry & {
   effectiveAgent: AgentConfigEntry;
   defaultDerivedFields: string[];
 };
+
+export interface ResolvedAgentContext {
+  entry: ResolvedAgentEntry;
+  effectiveAgent: AgentConfigEntry;
+  defaultDerivedFields: string[];
+}
 
 export async function discoverOpenClawConfig(
   params: { configPath?: string; cwd?: string } = {},
@@ -258,6 +284,28 @@ export function extractPortableAgentDefinition(params: {
           ]
         : []),
     ],
+  };
+}
+
+export function resolveAgentContextForWorkspace(params: {
+  config: MinimalOpenClawConfig;
+  configPath: string;
+  workspacePath: string;
+  agentId?: string;
+}): ResolvedAgentContext | undefined {
+  const resolved =
+    (params.agentId
+      ? resolveAgentFromConfig(params.config, params.agentId)
+      : findAgentByWorkspace(params.config, params.workspacePath, params.configPath)) ??
+    resolveAgentFromConfig(params.config, params.agentId);
+
+  if (!resolved) return undefined;
+
+  const portable = resolvePortableAgentEntry(params.config, params.configPath, resolved);
+  return {
+    entry: resolved,
+    effectiveAgent: portable.effectiveAgent,
+    defaultDerivedFields: portable.defaultDerivedFields,
   };
 }
 
@@ -630,7 +678,7 @@ function configCandidatesForStateDir(stateDir: string): string[] {
   ];
 }
 
-function resolveUserPath(input: string): string {
+export function resolveUserPath(input: string): string {
   const trimmed = input.trim();
   if (trimmed === '~') {
     return path.resolve(homedir());

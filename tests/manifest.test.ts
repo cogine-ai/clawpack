@@ -45,7 +45,7 @@ test('manifest builder emits required fields and additive metadata', async () =>
   assert.equal(manifest.formatVersion, 2);
   assert.equal(manifest.packageType, 'openclaw-agent-template');
   assert.equal(manifest.source.openclawVersion, '1.2.3');
-  assert.equal(manifest.includes.skills, 'manifest-only');
+  assert.equal(manifest.includes.skills, 'topology-snapshot');
   assert.equal(manifest.includes.dailyMemory, false);
   assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'notes.txt', 'SOUL.md', 'TOOLS.md', 'USER.md']);
   assert.deepEqual(manifest.includes.bootstrapFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
@@ -97,9 +97,17 @@ const emptyAgentDef: AgentDefinition = {
 };
 
 const emptySkills: SkillsManifest = {
-  mode: 'manifest-only',
-  workspaceSkills: [],
-  referencedSkills: [],
+  mode: 'topology-snapshot',
+  roots: [],
+  allowlist: {
+    mode: 'unrestricted',
+    values: [],
+    source: 'none',
+    portability: 'host-bound',
+    notes: [],
+  },
+  entries: [],
+  effectiveSkills: [],
   notes: [],
 };
 
@@ -254,13 +262,36 @@ test('buildManifest and buildExportReport include compatibility labels', async (
 
 test('buildSkillsCompatibility excludes freeform notes from compatibility items', () => {
   const compatibility = buildSkillsCompatibility({
-    mode: 'manifest-only',
-    workspaceSkills: ['brainstorming'],
-    referencedSkills: ['review-and-ship'],
+    mode: 'topology-snapshot',
+    roots: [],
+    allowlist: {
+      mode: 'unrestricted',
+      values: [],
+      source: 'none',
+      portability: 'host-bound',
+      notes: [],
+    },
+    entries: [],
+    effectiveSkills: [
+      {
+        skillKey: 'brainstorming',
+        status: 'visible',
+        portability: 'portable',
+        shadowed: [],
+        notes: [],
+      },
+      {
+        skillKey: 'review-and-ship',
+        status: 'visible',
+        portability: 'reinstall-required',
+        shadowed: [],
+        notes: [],
+      },
+    ],
     notes: ['Use the local skill registry for installation guidance.'],
   });
 
-  const expectedItems = ['brainstorming', 'review-and-ship'];
+  const expectedItems = ['review-and-ship'];
   assert.deepEqual(
     compatibility.map((entry) => entry.items),
     [expectedItems, expectedItems],

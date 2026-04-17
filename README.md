@@ -87,9 +87,16 @@ Beyond file-level exclusions, Clawpacker never exports or restores:
 
 ### Skills model
 
-Skills are **manifest-only** right now.
+Clawpacker records a **skills topology snapshot**.
 
-That means Clawpacker records detected skill references (using backtick-quoted references like `` `skill-name` ``), but it does not bundle or install skill implementations for you.
+That snapshot is source-backed:
+
+- visible skill roots and their precedence
+- the effective per-agent skill allowlist, when configured
+- `skills.entries.*` settings such as explicit enable/disable and env/API-key wiring
+- whether a visible skill state is `portable`, `host-bound`, `reinstall-required`, or `unsupported`
+
+Clawpacker still does **not** auto-install skills for you. Workspace-owned skill implementations can travel with the exported workspace; managed/shared/bundled/plugin-provided skills remain host-managed and require manual reinstall or reconfiguration on the target instance.
 
 ### Runtime layer (optional)
 
@@ -311,6 +318,9 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
   "packageRoot": ".../example-supercoder.ocpkg",
   "manifestPath": ".../example-supercoder.ocpkg/manifest.json",
   "fileCount": 12,
+  "skills": {
+    "mode": "topology-snapshot"
+  },
   "runtimeMode": "default",
   "runtimeFiles": ["models.json"],
   "runtimeOfficialFiles": ["models.json"],
@@ -551,7 +561,8 @@ Near-term likely improvements:
 Current limitations to be aware of:
 
 - package format should still be treated as early-stage (currently v2)
-- skills are detected in workspace content, but runtime `skills/**` and `extensions/**` are currently classified as unsupported and are not bundled
+- the exported skills snapshot is descriptive, not an auto-installer; host-managed, bundled, extra-dir, and plugin-provided skills still require manual reinstall/reconfiguration
+- runtime `skills/**` and `extensions/**` are still classified as unsupported runtime artifacts and are not bundled
 - `--force` uses file-level replacement semantics — only files present in the package are overwritten; unrelated files in the target workspace are preserved
 - OpenClaw config support is minimal by design
 - runtime layer path rewriting only handles inferred `settings.json` — other config files with embedded paths require manual update

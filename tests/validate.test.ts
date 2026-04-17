@@ -76,7 +76,7 @@ test('validate command reports passed warnings failed and nextSteps', async () =
   assert.equal(Array.isArray(report.compatibility), true);
   assert.equal(report.failed.length, 0);
   assert.ok(
-    report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')),
+    report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')),
   );
   assert.ok(report.nextSteps.some((step: string) => step.includes('does not restore live bindings or scheduled jobs')));
   assert.ok(report.nextSteps.some((step: string) => step.includes('openclaw doctor')));

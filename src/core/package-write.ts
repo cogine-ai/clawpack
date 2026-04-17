@@ -74,12 +74,15 @@ export async function writePackageDirectory(params: {
   }
 
   const warnings: string[] = [];
-  const hasDetectedSkills = params.skills.workspaceSkills.length > 0 || params.skills.referencedSkills.length > 0;
   const hasBindings = (params.bindings?.length ?? 0) > 0;
   const hasCronJobs = (params.cronJobs?.length ?? 0) > 0;
+  const hasNonPortableVisibleSkills = params.skills.effectiveSkills
+    .some((skill) => skill.status === 'visible' && skill.portability !== 'portable');
 
-  if (hasDetectedSkills) {
-    warnings.push('Skills are manifest-only and may require manual installation.');
+  if (hasNonPortableVisibleSkills) {
+    warnings.push(
+      'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+    );
   }
   if (hasBindings || hasCronJobs) {
     warnings.push('This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.');
@@ -114,6 +117,12 @@ export async function writePackageDirectory(params: {
     const bindingsJson = JSON.stringify(params.bindings, null, 2);
     await writeFile(path.join(params.outputPath, 'config', 'bindings.json'), `${bindingsJson}\n`, 'utf8');
     checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
+  }
+
+  if (params.cronJobs && params.cronJobs.length > 0) {
+    const cronJson = JSON.stringify(params.cronJobs, null, 2);
+    await writeFile(path.join(params.outputPath, 'config', 'cron.json'), `${cronJson}\n`, 'utf8');
+    checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
   }
 
   let runtimeManifestData: RuntimeManifest | undefined;
