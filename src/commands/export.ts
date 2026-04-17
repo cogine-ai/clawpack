@@ -27,7 +27,10 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const scan = await scanWorkspace(path.resolve(options.workspace));
-  const skills = await detectSkills(scan);
+  const skills = await detectSkills(scan, {
+    configPath: options.config,
+    agentId: options.agentId,
+  });
   const agentDefinition = await extractAgentDefinition(scan.workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
@@ -87,6 +90,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     packageRoot: result.packageRoot,
     manifestPath: result.manifestPath,
     fileCount: result.fileCount,
+    skills,
     runtimeMode: runtimeScan?.mode,
     runtimeFiles: runtimeScan?.includedFiles.map(f => f.relativePath),
     runtimeGroundedFiles: runtimeScan?.artifacts.grounded,
@@ -106,6 +110,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     `  Package: ${report.packageRoot}`,
     `  Manifest: ${report.manifestPath}`,
     `  Files: ${report.fileCount}`,
+    `  Skills visible: ${skills.effectiveSkills.filter((skill) => skill.status === 'visible').map((skill) => `${skill.skillKey} [${skill.portability}]`).join(', ') || 'none'}`,
   ];
   if (runtimeScan && runtimeScan.mode !== 'none') {
     lines.push('  Runtime contract: grounded=source-backed, inferred=convenience-only, unsupported=not packaged');

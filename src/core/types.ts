@@ -15,10 +15,69 @@ export interface WorkspaceScanResult {
   excludedFiles: ExcludedWorkspaceFile[];
 }
 
+export type SkillsMode = 'topology-snapshot';
+export type SkillPortability = 'portable' | 'host-bound' | 'reinstall-required' | 'unsupported';
+export type SkillRootKind =
+  | 'workspace'
+  | 'project-agent'
+  | 'personal-agent'
+  | 'managed'
+  | 'bundled'
+  | 'extra-dir'
+  | 'plugin-provided';
+export type SkillResolutionStatus = 'visible' | 'shadowed' | 'filtered-out' | 'disabled';
+
+export interface SkillRootSnapshot {
+  id: string;
+  kind: SkillRootKind;
+  source: string;
+  precedence: number;
+  path?: string;
+  exists: boolean;
+  portability: SkillPortability;
+  skillKeys: string[];
+  notes: string[];
+}
+
+export interface SkillAllowlistSnapshot {
+  mode: 'unrestricted' | 'allowlist';
+  values: string[];
+  source: string;
+  portability: SkillPortability;
+  notes: string[];
+}
+
+export interface SkillEntryConfigSnapshot {
+  skillKey: string;
+  enabled?: boolean;
+  envKeys: string[];
+  apiKeySource?: 'env' | 'literal' | 'unknown';
+  portability: SkillPortability;
+  notes: string[];
+}
+
+export interface SkillOccurrenceSnapshot {
+  rootId: string;
+  rootKind: SkillRootKind;
+  path?: string;
+  portability: SkillPortability;
+}
+
+export interface SkillResolutionSnapshot {
+  skillKey: string;
+  status: SkillResolutionStatus;
+  portability: SkillPortability;
+  source?: SkillOccurrenceSnapshot;
+  shadowed: SkillOccurrenceSnapshot[];
+  notes: string[];
+}
+
 export interface SkillsManifest {
-  mode: 'manifest-only';
-  workspaceSkills: string[];
-  referencedSkills: string[];
+  mode: SkillsMode;
+  roots: SkillRootSnapshot[];
+  allowlist: SkillAllowlistSnapshot;
+  entries: SkillEntryConfigSnapshot[];
+  effectiveSkills: SkillResolutionSnapshot[];
   notes: string[];
 }
 
@@ -112,7 +171,7 @@ export interface PackageManifest {
     workspaceFiles: string[];
     bootstrapFiles?: string[];
     dailyMemory: boolean;
-    skills: 'manifest-only';
+    skills: SkillsMode;
     agentDefinition: boolean;
     runtimeMode?: RuntimeMode;
     runtimeFiles?: string[];

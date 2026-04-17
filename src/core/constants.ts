@@ -50,13 +50,17 @@ export const EXCLUDED_PATTERNS: ExclusionPattern[] = [
   },
 ];
 
-export const SKILLS_MODE = 'manifest-only' as const;
+export const SKILLS_MODE = 'topology-snapshot' as const;
 
-export const SKILL_REFERENCE_PATTERNS = [
-  /\b(?:use|using|install|activate|invok(?:e|ing)|requires?)\s+(?:the\s+)?skill\s+`([a-z0-9][a-z0-9-]*)`/gi,
-  /skills?\/[A-Za-z0-9._-]+\/([a-z0-9][a-z0-9-]*)\b/gi,
-  /<name>([a-z0-9][a-z0-9-]*)<\/name>/gi,
-];
+export const SKILL_ROOT_PRECEDENCE = {
+  workspace: 70,
+  projectAgent: 60,
+  personalAgent: 50,
+  managed: 40,
+  bundled: 30,
+  extraDir: 20,
+  pluginProvided: 20,
+} as const;
 
 export const RUNTIME_GROUNDED_ARTIFACTS: string[] = [
   'models.json',
