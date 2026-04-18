@@ -148,6 +148,7 @@ test('package reader ignores legacy cron package metadata from older packages', 
 
   const pkg = await readPackageDirectory(outputRoot);
   assert.equal('cronJobs' in pkg, false);
+  assert.equal('cronJobs' in pkg.manifest.includes, false);
 });
 
 test('export command defaults to human-readable output and supports --json', async () => {

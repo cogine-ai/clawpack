@@ -206,7 +206,6 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     skills,
     warnings: [
       'Channel bindings require manual reconfiguration on the target instance.',
-      'Scheduled jobs require manual reconfiguration on the target instance.',
     ],
     runtimeManifest: {
       mode: runtimeScan.mode,
@@ -238,7 +237,6 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     manifest.compatibility.labels.some((entry) =>
       entry.label === 'manual' && entry.message.includes('Sentinel manual compatibility warning')),
   );
-
   assert.ok(Array.isArray(report.compatibility));
   assert.ok(
     report.compatibility.some((entry) =>
@@ -249,8 +247,8 @@ test('buildManifest and buildExportReport include compatibility labels', async (
       entry.label === 'manual' && entry.message.includes('Channel bindings require manual reconfiguration')),
   );
   assert.ok(
-    report.compatibility.some((entry) =>
-      entry.label === 'manual' && entry.message.includes('Scheduled jobs require manual reconfiguration')),
+    report.compatibility.every((entry) =>
+      !entry.message.includes('Scheduled jobs require manual reconfiguration')),
   );
   const labelOrder = ['official', 'inferred', 'manual', 'unsupported'];
   const manifestOrder = manifest.compatibility.labels.map((entry) => labelOrder.indexOf(entry.label));
