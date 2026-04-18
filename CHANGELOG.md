@@ -7,10 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-18
+
+### Added
+
+- Skills topology snapshot: export and inspect now capture visible skill roots, allowlists, entry wiring, effective skills, and portability classifications as source-backed metadata (#59)
+
+### Changed
+
+- Runtime artifact handling now classifies detected agentDir files as `grounded`, `inferred`, or `unsupported`; `default` packages only grounded artifacts, `full` adds inferred artifacts, and `skills/**` plus `extensions/**` are no longer bundled (#58)
+- Routing bindings packaging no longer advertises an unsupported portable `bindings` surface; export now records matching source OpenClaw top-level `bindings[]` entries as metadata-only hints in `meta/binding-hints.json`, and import copies them into local import metadata for manual reapplication (#56)
+- Inspect, export, package metadata, and validation output now expose unified `official` / `inferred` / `manual` / `unsupported` compatibility labels so source-backed, inferred, operator-required, and unsupported portability states are reported consistently (#60)
+
+### Fixed
+
+- OpenClaw config loading now matches current OpenClaw semantics for JSON5 parsing, `$include` resolution, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR`, and legacy `clawdbot.json` fallback paths (#53)
+- Workspace contract handling now distinguishes core required files from optional OpenClaw files, so missing `BOOT.md`, `BOOTSTRAP.md`, `HEARTBEAT.md`, `MEMORY.md`, and `memory.md` no longer fail validation; `memory/*.md` exclusion is documented as a clawpacker policy (#55)
+- Legacy `cronJobs` package metadata is stripped on read, and residual cron compatibility plumbing no longer advertises scheduled jobs as part of the current portability contract (#69)
+
+## [0.3.0] - 2026-03-22
+
 ### Added
 
 - Runtime layer support: `--runtime-mode` flag on `inspect` and `export` commands with three modes — `none`, `default`, and `full` (#38)
-- Runtime layer includes `models.json` sanitization, inferred settings analysis, and packaging metadata for the selected runtime slice (#38)
+- `default` mode packages `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, and `models.json` from the agent's agentDir (#38)
+- `full` mode additionally packages `skills/**` and `extensions/**` (#38)
 - `models.json` sanitization: API keys, secrets, `$secretRef` objects, and secret-bearing headers are stripped before packaging (#38)
 - `settings.json` path analysis: path-like values are classified as workspace-internal, agentDir-internal, relative, external-absolute, or host-bound (#38)
 - Runtime scan with safety exclusions: auth files, session data, toolchain artifacts, and temp/log files are always excluded (#38)
@@ -29,14 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI help text updated to describe runtime modes, safety boundaries, and default behavior (#40)
 - CLI version aligned with package version (#40)
 - README updated with runtime layer documentation: mode descriptions, exclusion rules, path rewriting, import behavior, and package structure (#40)
-- Runtime artifact handling now classifies detected agentDir files as `grounded`, `inferred`, or `unsupported`; `default` packages only grounded artifacts, `full` adds inferred artifacts, and `skills/**` plus `extensions/**` are no longer bundled (#58)
-- Routing bindings packaging no longer advertises an unsupported portable `bindings` surface; export now records matching source OpenClaw top-level `bindings[]` entries as metadata-only hints in `meta/binding-hints.json`, and import copies them into local import metadata for manual reapplication (#56)
-- Inspect, export, package metadata, and validation output now expose unified `official` / `inferred` / `manual` / `unsupported` compatibility labels so source-backed, inferred, operator-required, and unsupported portability states are reported consistently (#60)
-
-### Fixed
-
-- OpenClaw config loading now matches current OpenClaw semantics for JSON5 parsing, `$include` resolution, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR`, and legacy `clawdbot.json` fallback paths (#53)
-- Workspace contract handling now distinguishes core required files from optional OpenClaw files, so missing `BOOT.md`, `BOOTSTRAP.md`, `HEARTBEAT.md`, `MEMORY.md`, and `memory.md` no longer fail validation; `memory/*.md` exclusion is documented as a clawpacker policy (#55)
 
 ## [0.2.0] - 2026-03-19
 
@@ -89,6 +102,8 @@ Initial alpha release of clawpacker — a portability CLI for OpenClaw agents an
 - Unified CLI output format across export/import/validate commands (#13)
 - Cleaned up blocked-import failure output for operator readability (#3)
 
-[Unreleased]: https://github.com/cogine-ai/clawpack/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cogine-ai/clawpack/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/cogine-ai/clawpack/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/cogine-ai/clawpack/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cogine-ai/clawpack/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cogine-ai/clawpack/releases/tag/v0.1.0

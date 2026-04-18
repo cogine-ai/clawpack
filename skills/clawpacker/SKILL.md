@@ -9,7 +9,7 @@ description: >
 
 # Clawpacker — OpenClaw Agent Portability CLI
 
-clawpacker exports the portable parts of an OpenClaw agent workspace into a `.ocpkg` package and imports that package into another OpenClaw setup. This is template portability, not full-instance backup.
+clawpacker exports the portable parts of an OpenClaw agent into a `.ocpkg` package and imports that package into another OpenClaw setup. The core entity is the agent; the workspace travels as part of the agent package. This is template portability, not full-instance backup.
 
 **CLI command:** `clawpacker` (via `npm install -g @cogineai/clawpacker`)
 **From source:** `node dist/cli.js` (after `npm install && npm run build` in the clawpack repo)
@@ -35,6 +35,7 @@ clawpacker inspect \
   --workspace <source-workspace-path> \
   --config <openclaw-config-path> \
   --agent-id <agent-id> \
+  --runtime-mode <none|default|full> \
   --json
 ```
 
@@ -43,6 +44,7 @@ clawpacker inspect \
 | `--workspace <path>` | Yes | Source workspace directory |
 | `--config <path>` | No | OpenClaw config path (auto-discovered if omitted) |
 | `--agent-id <id>` | No | Override which agent to extract from config |
+| `--runtime-mode <mode>` | No | Inspect runtime portability too; `inspect` defaults to `default` when the flag is omitted |
 | `--json` | No | Output machine-readable JSON instead of text |
 
 **What the report tells you:**
@@ -51,7 +53,8 @@ clawpacker inspect \
 - Which files are recognized as bootstrap files (AGENTS.md, SOUL.md, etc.)
 - Whether a portable agent definition was extracted from config
 - Which config fields are portable vs. need input on import vs. excluded
-- Detected skill references (manifest-only — skills are not bundled)
+- Skills topology snapshot and portability labels
+- Runtime compatibility labels (`official`, `inferred`, `manual`, `unsupported`) when runtime inspection is enabled
 
 **When to use inspect:**
 - Before a first-time export, to verify nothing unexpected is included/excluded
@@ -71,6 +74,7 @@ clawpacker export \
   --config <openclaw-config-path> \
   --name <package-name> \
   --agent-id <agent-id> \
+  --runtime-mode <none|default|full> \
   --archive \
   --json
 ```
@@ -82,6 +86,7 @@ clawpacker export \
 | `--name <name>` | No | Override package name (defaults to output directory basename) |
 | `--config <path>` | No | OpenClaw config path |
 | `--agent-id <id>` | No | Override which agent to extract from config |
+| `--runtime-mode <mode>` | No | Include an optional runtime layer; `export` skips runtime files unless this is provided |
 | `--archive` | No | Produce a single `.ocpkg.tar.gz` file instead of a directory |
 | `--json` | No | Output machine-readable JSON report |
 
@@ -95,11 +100,14 @@ clawpacker export \
 - All workspace files except `.git/`, `.openclaw/`, `node_modules/`, and `memory/*.md`
 - Bootstrap files are flagged: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
 - Agent config (portable fields only), skills manifest, checksums, export report
+- Optional runtime subtree when `--runtime-mode` is `default` or `full`
+- Optional `meta/binding-hints.json` when source config contains matching top-level `bindings[]` entries for the exported agent
 
 **What is always excluded:**
 - Secrets, auth state, API keys, credentials
 - Session/runtime state
-- Channel bindings / routing state
+- Live channel bindings / routing state
+- Scheduled jobs / cron registration
 - Globally installed skills or extensions
 - Daily memory logs (`memory/*.md`)
 
@@ -114,6 +122,7 @@ clawpacker import <package-path> \
   --target-workspace <target-workspace-path> \
   --agent-id <target-agent-id> \
   --config <target-openclaw-config-path> \
+  --target-agent-dir <target-agent-dir> \
   --force \
   --dry-run \
   --json
@@ -125,6 +134,7 @@ clawpacker import <package-path> \
 | `--target-workspace <path>` | Yes | Where to write the workspace files |
 | `--agent-id <id>` | Strongly recommended | Target agent id for the imported definition |
 | `--config <path>` | No | Target OpenClaw config path |
+| `--target-agent-dir <path>` | No | Where runtime files should be restored when the package includes a runtime layer |
 | `--force` | No | Overwrite existing workspace or agent config entry |
 | `--dry-run` | No | Print the import plan without writing anything |
 | `--json` | No | Output machine-readable JSON report |
@@ -141,6 +151,8 @@ When import is blocked, the CLI prints a structured report showing what's blocki
 
 **When `--config` is provided**, import upserts the agent definition into the target OpenClaw config. It handles both single-agent (`agent`) and multi-agent (`agents.list`) config formats automatically. Without `--config`, workspace files are still restored but config registration is skipped.
 
+If the package includes a runtime layer, import either needs `--target-agent-dir` or a resolvable target agentDir from the target config. Runtime file collisions also block by default unless `--force` is passed.
+
 ---
 
 ## 4. Validate — Verify the Import
@@ -152,6 +164,7 @@ clawpacker validate \
   --target-workspace <target-workspace-path> \
   --agent-id <expected-agent-id> \
   --config <target-openclaw-config-path> \
+  --target-agent-dir <target-agent-dir> \
   --json
 ```
 
@@ -160,18 +173,21 @@ clawpacker validate \
 | `--target-workspace <path>` | Yes | The imported workspace path |
 | `--agent-id <id>` | No | Expected agent id to verify against |
 | `--config <path>` | No | Target OpenClaw config path for consistency checks |
+| `--target-agent-dir <path>` | No | Override runtime validation target when the package includes a runtime layer |
 | `--json` | No | Output machine-readable JSON report |
 
 **Validation checks:**
 - Workspace directory exists
-- Required workspace files present: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`
+- Required workspace files present: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`
 - Import metadata (`.openclaw-agent-package/agent-definition.json`) exists and matches agent id
 - If `--config` + `--agent-id`: agent exists in OpenClaw config and workspace path matches
+- If runtime metadata exists: runtime files, checksums, agentDir consistency, auth exclusion, and `settings.json` validity are verified too
 
 **After validation passes, remind the user to manually:**
 - Review `USER.md`, `TOOLS.md`, and `MEMORY.md` for target-specific adjustments
 - Install required skills (skills are manifest-only, not bundled)
-- Configure channel bindings on the target instance
+- Review `.openclaw-agent-package/binding-hints.json` if present and reapply any routing bindings manually
+- Reconfigure any scheduled jobs manually on the target instance
 - Verify model/provider availability
 
 ---
@@ -181,9 +197,14 @@ clawpacker validate \
 When no `--config` flag is given, clawpacker discovers the OpenClaw config in this order:
 
 1. `OPENCLAW_CONFIG_PATH` environment variable
-2. `~/.openclaw/openclaw.json` (default)
+2. `OPENCLAW_STATE_DIR/openclaw.json`
+3. `~/.openclaw/openclaw.json` (default)
+4. legacy `clawdbot.json` fallback paths when the canonical file is absent
 
-Both JSONC (comments allowed) and plain JSON are supported.
+Config loading follows current OpenClaw semantics:
+- JSON5 parsing is supported
+- `$include` chains are resolved relative to each included file
+- both single-agent (`agent`) and multi-agent (`agents.list`) formats are supported
 
 ---
 
@@ -191,13 +212,17 @@ Both JSONC (comments allowed) and plain JSON are supported.
 
 ```bash
 # 1. Check what's portable
-clawpacker inspect --workspace ~/openclaw-workspaces/my-agent
+clawpacker inspect \
+  --workspace ~/openclaw-workspaces/my-agent \
+  --config ~/.openclaw/openclaw.json \
+  --runtime-mode default
 
 # 2. Export as archive
 clawpacker export \
   --workspace ~/openclaw-workspaces/my-agent \
   --config ~/.openclaw/openclaw.json \
   --out ./my-agent-template.ocpkg \
+  --runtime-mode default \
   --archive
 
 # 3. Transfer my-agent-template.ocpkg.tar.gz to target machine, then:
@@ -207,19 +232,22 @@ clawpacker import ./my-agent-template.ocpkg.tar.gz \
   --target-workspace ~/.openclaw/workspace-my-agent \
   --agent-id my-agent \
   --config ~/.openclaw/openclaw.json \
+  --target-agent-dir ~/.openclaw/agents/my-agent \
   --dry-run
 
 # 5. Execute the import
 clawpacker import ./my-agent-template.ocpkg.tar.gz \
   --target-workspace ~/.openclaw/workspace-my-agent \
   --agent-id my-agent \
-  --config ~/.openclaw/openclaw.json
+  --config ~/.openclaw/openclaw.json \
+  --target-agent-dir ~/.openclaw/agents/my-agent
 
 # 6. Validate
 clawpacker validate \
   --target-workspace ~/.openclaw/workspace-my-agent \
   --agent-id my-agent \
-  --config ~/.openclaw/openclaw.json
+  --config ~/.openclaw/openclaw.json \
+  --target-agent-dir ~/.openclaw/agents/my-agent
 ```
 
 ---
@@ -230,7 +258,7 @@ clawpacker validate \
 
 The target directory is not empty. Either:
 - Choose a different `--target-workspace` path, or
-- Re-run with `--force` (this deletes and recreates the target workspace)
+- Re-run with `--force` (this overwrites package-managed files in place while preserving unrelated files)
 
 After re-importing with `--force`, always run `validate` to confirm the overwrite landed correctly.
 
@@ -257,7 +285,7 @@ Import can still proceed without config — workspace files will be restored, bu
 
 ### Validation fails: "Missing required workspace file"
 
-A required bootstrap file (AGENTS.md, SOUL.md, etc.) is missing from the target workspace. This usually means the source workspace didn't have it either. Create the missing file manually.
+A core required workspace file (`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, or `TOOLS.md`) is missing from the target workspace. Optional files like `MEMORY.md`, `BOOT.md`, `BOOTSTRAP.md`, and `HEARTBEAT.md` do not fail validation on their own.
 
 ### Validation fails: "OpenClaw config workspace mismatch"
 
@@ -288,11 +316,17 @@ A `.ocpkg` package has this structure:
 │   ├── agent.json             # Portable agent definition
 │   ├── import-hints.json      # Required inputs and warnings for import
 │   ├── skills-manifest.json   # Detected skill references
-│   ├── bindings.json          # Channel bindings (if present)
-│   └── cron.json              # Cron jobs (if present)
-└── meta/
-    ├── checksums.json         # SHA-256 per-file checksums
-    └── export-report.json     # Export summary
+├── meta/
+│   ├── binding-hints.json     # Optional source-backed routing hints; metadata only
+│   ├── checksums.json         # SHA-256 per-file checksums
+│   └── export-report.json     # Export summary
+└── runtime/                   # Optional runtime slice when --runtime-mode is used
+    ├── manifest.json
+    ├── checksums.json
+    ├── path-rewrites.json
+    ├── settings-analysis.json # Present when inferred settings.json is included
+    └── files/
+        └── ...
 ```
 
 Current format version is **2** (backward-compatible reading of v1 packages).
@@ -304,8 +338,9 @@ Current format version is **2** (backward-compatible reading of v1 packages).
 Understanding scope prevents confusion:
 
 - **No secrets migration** — API keys, tokens, credentials are never exported
-- **No channel binding export** — routing/binding state must be reconfigured manually
+- **No live binding restore** — routing/binding state is metadata-only and must be reconfigured manually
+- **No cron portability contract** — there is no `config/cron.json`; scheduled jobs must be recreated manually
 - **No skill bundling** — only skill references are recorded, not implementations
 - **No full-instance backup** — this is agent template portability, not disaster recovery
-- **No session/runtime state** — conversation history, runtime caches are excluded
+- **No auth/session migration** — auth files and session data are always excluded
 - **No zero-touch import** — some manual steps are always expected after import

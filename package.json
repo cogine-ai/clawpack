@@ -1,6 +1,6 @@
 {
   "name": "@cogineai/clawpacker",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Portable OpenClaw agent/workspace template CLI for inspect/export/import/validate workflows.",
   "bin": {
     "clawpacker": "dist/cli.js"
