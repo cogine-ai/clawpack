@@ -83,7 +83,6 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   }
 
   manifest.includes.bootstrapFiles ??= [];
-  manifest.includes.bindings ??= false;
   manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
@@ -114,14 +113,9 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
-  const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
+  const bindingHintsPath = path.join(resolvedRoot, 'meta', 'binding-hints.json');
 
-  let bindings: AgentBindingDefinition[] | undefined;
-  if (manifest.includes.bindings) {
-    bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  } else {
-    bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  }
+  const bindingHints = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingHintsPath);
 
   const runtimeManifestPath = path.join(resolvedRoot, 'runtime', 'manifest.json');
   const runtimeManifest = await readOptionalJsonFile<RuntimeManifest>(runtimeManifestPath);
@@ -135,7 +129,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     checksums,
     exportReport,
     workspaceFiles,
-    bindings,
+    bindingHints,
     runtimeManifest,
   };
 }

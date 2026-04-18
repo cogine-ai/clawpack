@@ -3,7 +3,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import JSON5 from 'json5';
-import type { AgentDefinition } from './types';
+import type { AgentBindingDefinition, AgentDefinition } from './types';
 
 export interface AgentConfigEntry {
   id?: string;
@@ -50,11 +50,36 @@ export interface MinimalOpenClawConfig {
     [key: string]: unknown;
   };
   agent?: AgentConfigEntry;
+  bindings?: AgentBindingDefinition[];
   agents?: {
     defaults?: Record<string, unknown>;
     list?: AgentConfigEntry[];
   };
   [key: string]: unknown;
+}
+
+export async function detectBindingHints(params: {
+  configPath?: string;
+  cwd?: string;
+  agentId?: string;
+  workspacePath?: string;
+}): Promise<AgentBindingDefinition[]> {
+  try {
+    const loaded = await loadOpenClawConfig({ configPath: params.configPath, cwd: params.cwd });
+    return extractBindingHints({
+      config: loaded.config,
+      configPath: loaded.configPath,
+      workspacePath: params.workspacePath,
+      agentId: params.agentId,
+    });
+  } catch (err) {
+    if (isMissingOpenClawConfigError(err)) {
+      return [];
+    }
+
+    console.error('Failed to detect OpenClaw binding hints:', err);
+    throw err;
+  }
 }
 
 const NEW_STATE_DIRNAME = '.openclaw';
@@ -287,6 +312,31 @@ export function extractPortableAgentDefinition(params: {
   };
 }
 
+export function extractBindingHints(params: {
+  config: MinimalOpenClawConfig;
+  configPath?: string;
+  workspacePath?: string;
+  agentId?: string;
+}): AgentBindingDefinition[] {
+  const bindings = Array.isArray(params.config.bindings) ? params.config.bindings : [];
+  const resolvedAgentId =
+    params.agentId ??
+    (
+      params.workspacePath
+        ? findAgentByWorkspace(params.config, params.workspacePath, params.configPath)
+        : undefined
+    )?.resolvedId ??
+    resolveAgentFromConfig(params.config)?.resolvedId;
+
+  if (!resolvedAgentId) {
+    return [];
+  }
+
+  return bindings
+    .filter((binding) => isBindingHint(binding) && binding.agentId === resolvedAgentId)
+    .map((binding) => structuredClone(binding));
+}
+
 export function resolveAgentContextForWorkspace(params: {
   config: MinimalOpenClawConfig;
   configPath: string;
@@ -401,6 +451,16 @@ export async function upsertPortableAgentDefinition(params: {
 
 function parseConfigFile(value: string): unknown {
   return JSON5.parse(value);
+}
+
+function isMissingOpenClawConfigError(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith('OpenClaw config not found.');
+}
+
+function isBindingHint(value: unknown): value is AgentBindingDefinition {
+  if (!isPlainObject(value)) return false;
+  if (typeof value.agentId !== 'string' || value.agentId.trim() === '') return false;
+  return isPlainObject(value.match);
 }
 
 function extractOpenClawVersion(config: MinimalOpenClawConfig): string | undefined {

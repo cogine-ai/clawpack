@@ -31,6 +31,7 @@ export function buildManifest(params: {
   checksums?: Record<string, string>;
   hasBindings?: boolean;
   hasCronJobs?: boolean;
+  warnings?: string[];
   runtimeScan?: RuntimeScanResult;
 }): PackageManifest {
   const workspaceName = path.basename(params.workspacePath);
@@ -41,6 +42,7 @@ export function buildManifest(params: {
     runtimeCompatibility: params.runtimeScan?.compatibility,
     runtimeArtifacts: params.runtimeScan?.artifacts,
     runtimeWarnings: params.runtimeScan?.warnings,
+    manualMessages: params.warnings,
   });
   return {
     formatVersion: PACKAGE_FORMAT_VERSION,
@@ -61,8 +63,6 @@ export function buildManifest(params: {
       dailyMemory: false,
       skills: SKILLS_MODE,
       agentDefinition: true,
-      bindings: params.hasBindings ?? false,
-      cronJobs: params.hasCronJobs ?? false,
       runtimeMode: params.runtimeScan?.mode,
       runtimeFiles: params.runtimeScan?.includedFiles.map(f => f.relativePath),
     },

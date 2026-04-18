@@ -7,7 +7,6 @@ import { buildExportArtifacts } from './manifest';
 import type {
   AgentBindingDefinition,
   AgentDefinition,
-  CronJobDefinition,
   ExportPackageResult,
   ImportHints,
   RuntimeManifest,
@@ -23,8 +22,7 @@ export async function writePackageArchive(params: {
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
-  bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   const archivePath = deriveArchivePath(params.outputPath);
@@ -55,8 +53,7 @@ export async function writePackageDirectory(params: {
   skills: SkillsManifest;
   agentDefinition: AgentDefinition;
   openclawVersion?: string;
-  bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   runtimeScan?: RuntimeScanResult;
 }): Promise<ExportPackageResult> {
   await rm(params.outputPath, { recursive: true, force: true });
@@ -74,8 +71,7 @@ export async function writePackageDirectory(params: {
   }
 
   const warnings: string[] = [];
-  const hasBindings = (params.bindings?.length ?? 0) > 0;
-  const hasCronJobs = (params.cronJobs?.length ?? 0) > 0;
+  const hasBindings = (params.bindingHints?.length ?? 0) > 0;
   const hasNonPortableVisibleSkills = params.skills.effectiveSkills
     .some((skill) => skill.status === 'visible' && skill.portability !== 'portable');
 
@@ -84,9 +80,11 @@ export async function writePackageDirectory(params: {
       'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
     );
   }
-  if (hasBindings || hasCronJobs) {
-    warnings.push('This clawpacker version does not package live bindings or scheduled jobs; reconfigure them manually on the target instance.');
-  }
+  warnings.push(
+    hasBindings
+      ? 'This clawpacker version does not restore live bindings or scheduled jobs; after import, review .openclaw-agent-package/binding-hints.json on the target instance and reapply any source-backed routing bindings manually.'
+      : 'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
+  );
 
   const importHints: ImportHints = {
     requiredInputs: [
@@ -113,16 +111,14 @@ export async function writePackageDirectory(params: {
   checksums['config/agent.json'] = checksumText(`${agentJson}\n`);
   checksums['config/import-hints.json'] = checksumText(`${importHintsJson}\n`);
 
-  if (params.bindings && params.bindings.length > 0) {
-    const bindingsJson = JSON.stringify(params.bindings, null, 2);
-    await writeFile(path.join(params.outputPath, 'config', 'bindings.json'), `${bindingsJson}\n`, 'utf8');
-    checksums['config/bindings.json'] = checksumText(`${bindingsJson}\n`);
-  }
-
-  if (params.cronJobs && params.cronJobs.length > 0) {
-    const cronJson = JSON.stringify(params.cronJobs, null, 2);
-    await writeFile(path.join(params.outputPath, 'config', 'cron.json'), `${cronJson}\n`, 'utf8');
-    checksums['config/cron.json'] = checksumText(`${cronJson}\n`);
+  if (params.bindingHints && params.bindingHints.length > 0) {
+    const bindingHintsJson = JSON.stringify(params.bindingHints, null, 2);
+    await writeFile(
+      path.join(params.outputPath, 'meta', 'binding-hints.json'),
+      `${bindingHintsJson}\n`,
+      'utf8',
+    );
+    checksums['meta/binding-hints.json'] = checksumText(`${bindingHintsJson}\n`);
   }
 
   let runtimeManifestData: RuntimeManifest | undefined;
@@ -205,7 +201,6 @@ export async function writePackageDirectory(params: {
     checksums,
     warnings: importHints.warnings,
     hasBindings,
-    hasCronJobs,
     runtimeScan: params.runtimeScan,
     runtimeManifest: runtimeManifestData,
   });

@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  detectBindingHints,
   discoverOpenClawConfig,
   extractPortableAgentDefinition,
   hasAgentInConfig,
@@ -204,6 +205,34 @@ test('loadOpenClawConfig parses JSON5 and resolves nested includes relative to e
   assert.equal(agent?.tools?.profile, 'strict');
   assert.equal(agent?.workspace, './workspaces/source-workspace');
   assert.equal(agent?.model?.default, 'openai-codex/gpt-5.4');
+});
+
+test('detectBindingHints surfaces include-read failures instead of treating them as missing config', async () => {
+  const rootDir = path.join(parserFixtureRoot, 'binding-hints-missing-include');
+  const configPath = path.join(rootDir, 'openclaw.json');
+
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      $include: './missing-child.json',
+      agent: {
+        id: 'solo',
+        name: 'Solo Agent',
+        workspace: '/tmp/solo-workspace',
+      },
+    }),
+    'utf8',
+  );
+
+  await assert.rejects(
+    detectBindingHints({
+      configPath,
+      workspacePath: '/tmp/solo-workspace',
+    }),
+    { code: 'ENOENT' },
+  );
 });
 
 // --- resolveAgentFromConfig ---

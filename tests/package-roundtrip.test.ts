@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { readPackageDirectory } from '../src/core/package-read';
 import { scanWorkspace } from '../src/core/workspace-scan';
+import { createTempWorkspace } from './helpers/workspace-factory';
 import { runCli } from './helpers/run-cli';
 
 const fixture = path.resolve('tests/fixtures/source-workspace');
@@ -28,11 +29,13 @@ test('export command writes package directory structure and excludes daily memor
   }
 
   assert.equal(existsSync(path.join(outputRoot, 'workspace', 'memory', '2026-03-16.md')), false);
+  assert.equal(existsSync(path.join(outputRoot, 'config', 'bindings.json')), false);
   assert.equal(existsSync(path.join(outputRoot, 'config', 'cron.json')), false);
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, 'manifest.json'), 'utf8'));
   assert.equal(manifest.includes.skills, 'topology-snapshot');
-  assert.equal(manifest.includes.cronJobs, false);
+  assert.equal('bindings' in manifest.includes, false);
+  assert.equal('cronJobs' in manifest.includes, false);
   assert.match(manifest.metadata.createdAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(manifest.metadata.createdBy.name, '@cogineai/clawpacker');
   assert.equal(typeof manifest.metadata.createdBy.version, 'string');
@@ -66,6 +69,66 @@ test('package reader tolerates manifests from older packages with missing additi
   assert.equal(pkg.manifest.metadata, undefined);
   assert.equal(pkg.manifest.source.openclawVersion, undefined);
   assert.equal(pkg.workspaceFiles.length >= 6, true);
+});
+
+test('export writes source-backed binding hints as metadata only', async () => {
+  const wsPath = await createTempWorkspace(path.resolve('tests/tmp/binding-hints-workspace'));
+  const pkgPath = path.resolve('tests/tmp/binding-hints-package.ocpkg');
+  const configPath = path.resolve('tests/tmp/binding-hints-openclaw.json');
+
+  await rm(pkgPath, { recursive: true, force: true });
+  await writeFile(
+    configPath,
+    `${JSON.stringify({
+      agent: {
+        id: 'hinted-agent',
+        name: 'Hinted Agent',
+        workspace: wsPath,
+      },
+      bindings: [
+        {
+          agentId: 'hinted-agent',
+          type: 'route',
+          comment: 'keep this one',
+          match: {
+            channel: 'slack',
+            accountId: '*',
+          },
+        },
+        {
+          agentId: 'other-agent',
+          type: 'route',
+          match: {
+            channel: 'discord',
+          },
+        },
+      ],
+    }, null, 2)}\n`,
+    'utf8',
+  );
+
+  await runCli([
+    'export',
+    '--workspace',
+    wsPath,
+    '--out',
+    pkgPath,
+    '--config',
+    configPath,
+    '--agent-id',
+    'hinted-agent',
+  ]);
+
+  assert.equal(existsSync(path.join(pkgPath, 'config', 'bindings.json')), false);
+  assert.equal(existsSync(path.join(pkgPath, 'meta', 'binding-hints.json')), true);
+
+  const manifest = JSON.parse(await readFile(path.join(pkgPath, 'manifest.json'), 'utf8'));
+  assert.equal('bindings' in manifest.includes, false);
+
+  const pkg = await readPackageDirectory(pkgPath);
+  assert.equal(pkg.bindingHints?.length, 1);
+  assert.equal(pkg.bindingHints?.[0].agentId, 'hinted-agent');
+  assert.equal(pkg.bindingHints?.[0].match.channel, 'slack');
 });
 
 test('package reader ignores legacy cron package metadata from older packages', async () => {

@@ -49,8 +49,8 @@ test('manifest builder emits required fields and additive metadata', async () =>
   assert.equal(manifest.includes.dailyMemory, false);
   assert.deepEqual(manifest.includes.workspaceFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'notes.txt', 'SOUL.md', 'TOOLS.md', 'USER.md']);
   assert.deepEqual(manifest.includes.bootstrapFiles, ['AGENTS.md', 'IDENTITY.md', 'MEMORY.md', 'SOUL.md', 'TOOLS.md', 'USER.md']);
-  assert.equal(manifest.includes.bindings, false);
-  assert.equal(manifest.includes.cronJobs, false);
+  assert.equal('bindings' in manifest.includes, false);
+  assert.equal('cronJobs' in manifest.includes, false);
   assert.deepEqual(manifest.excludes, { secrets: true, sessionState: true, connectionState: true });
   assert.deepEqual(manifest.metadata, {
     createdAt: '2026-03-18T00:00:00.000Z',
@@ -194,8 +194,9 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     scan,
     skills,
     agentDefinition,
-    hasBindings: true,
-    hasCronJobs: true,
+    warnings: [
+      'Sentinel manual compatibility warning from buildManifest warnings.',
+    ],
     runtimeScan,
   });
   const report = buildExportReport({
@@ -203,8 +204,10 @@ test('buildManifest and buildExportReport include compatibility labels', async (
     workspacePath: fixture,
     scan,
     skills,
-    hasBindings: true,
-    hasCronJobs: true,
+    warnings: [
+      'Channel bindings require manual reconfiguration on the target instance.',
+      'Scheduled jobs require manual reconfiguration on the target instance.',
+    ],
     runtimeManifest: {
       mode: runtimeScan.mode,
       agentDir: runtimeScan.agentDir,
@@ -233,11 +236,7 @@ test('buildManifest and buildExportReport include compatibility labels', async (
   );
   assert.ok(
     manifest.compatibility.labels.some((entry) =>
-      entry.label === 'manual' && entry.message.includes('Channel bindings require manual reconfiguration')),
-  );
-  assert.ok(
-    manifest.compatibility.labels.some((entry) =>
-      entry.label === 'manual' && entry.message.includes('Scheduled jobs require manual reconfiguration')),
+      entry.label === 'manual' && entry.message.includes('Sentinel manual compatibility warning')),
   );
 
   assert.ok(Array.isArray(report.compatibility));

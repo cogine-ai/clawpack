@@ -152,7 +152,7 @@ export async function validateImportedWorkspace(params: {
     'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
   );
   report.nextSteps.push(
-    'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
+    'This clawpacker version does not restore live bindings or scheduled jobs; review meta/binding-hints.json if present and reconfigure any channel routing and cron entries manually on the target instance.',
   );
   report.nextSteps.push('Run `openclaw doctor` and manually verify provider/model availability after import.');
   report.nextSteps.push(

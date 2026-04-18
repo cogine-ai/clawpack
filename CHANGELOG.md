@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI version aligned with package version (#40)
 - README updated with runtime layer documentation: mode descriptions, exclusion rules, path rewriting, import behavior, and package structure (#40)
 - Runtime artifact handling now classifies detected agentDir files as `grounded`, `inferred`, or `unsupported`; `default` packages only grounded artifacts, `full` adds inferred artifacts, and `skills/**` plus `extensions/**` are no longer bundled (#58)
+- Routing bindings packaging no longer advertises an unsupported portable `bindings` surface; export now records matching source OpenClaw top-level `bindings[]` entries as metadata-only hints in `meta/binding-hints.json`, and import copies them into local import metadata for manual reapplication (#56)
 - Inspect, export, package metadata, and validation output now expose unified `official` / `inferred` / `manual` / `unsupported` compatibility labels so source-backed, inferred, operator-required, and unsupported portability states are reported consistently (#60)
 
 ### Fixed

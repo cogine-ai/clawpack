@@ -7,7 +7,7 @@ import {
   mergeCompatibilityEntries,
   renderCompatibilityLines,
 } from '../core/compatibility';
-import { resolveAgentDir } from '../core/openclaw-config';
+import { detectBindingHints, resolveAgentDir } from '../core/openclaw-config';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
@@ -37,6 +37,12 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   const agentDefinition = await extractAgentDefinition(workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
+  });
+  const bindingHints = await detectBindingHints({
+    configPath: options.config,
+    cwd: workspacePath,
+    agentId: options.agentId,
+    workspacePath,
   });
 
   const warnings: string[] = [];
@@ -84,6 +90,8 @@ export async function runInspect(options: InspectOptions): Promise<void> {
       notes: agentDefinition.notes,
     },
     skills,
+    bindingHintsCount: bindingHints.length,
+    bindingHintsMetadataOnly: bindingHints.length > 0,
     runtime: runtimeResult ? {
       mode: runtimeResult.mode,
       agentDir: runtimeResult.agentDir,
@@ -97,7 +105,12 @@ export async function runInspect(options: InspectOptions): Promise<void> {
       runtimeResult?.compatibility,
       buildSkillsCompatibility(skills),
       buildManualCompatibility(
-        warnings.filter((warning) => /agentDir/i.test(warning)),
+        [
+          ...warnings.filter((warning) => /agentDir/i.test(warning)),
+          ...(bindingHints.length > 0
+            ? ['Source-backed routing bindings are metadata only and must be reapplied manually on the target instance.']
+            : []),
+        ],
       ),
     ),
     warnings,
@@ -128,6 +141,7 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `Skill roots (${skills.roots.length}): ${skills.roots.map((root) => `${root.kind}${root.exists ? '' : ' (missing)'}`).join(', ') || 'none'}`,
     `Visible skills (${skills.effectiveSkills.filter((skill) => skill.status === 'visible').length}): ${skills.effectiveSkills.filter((skill) => skill.status === 'visible').map((skill) => `${skill.skillKey} [${skill.portability}]`).join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
+    `Binding hints detected: ${bindingHints.length}${bindingHints.length > 0 ? ' (source-backed metadata only; manual reapply required)' : ''}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
     `Runtime mode: ${report.runtimeMode}`,
     ...renderCompatibilityLines(report.compatibility),
