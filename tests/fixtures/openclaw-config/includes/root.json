@@ -1,0 +1,12 @@
+{
+  $include: "./shared/base.json5",
+  agents: {
+    list: [
+      {
+        $include: "./agents/supercoder.json5",
+        workspace: "./workspaces/source-workspace",
+      },
+    ],
+  },
+  tags: ["root"],
+}

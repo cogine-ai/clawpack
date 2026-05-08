@@ -15,10 +15,69 @@ export interface WorkspaceScanResult {
   excludedFiles: ExcludedWorkspaceFile[];
 }
 
+export type SkillsMode = 'topology-snapshot';
+export type SkillPortability = 'portable' | 'host-bound' | 'reinstall-required' | 'unsupported';
+export type SkillRootKind =
+  | 'workspace'
+  | 'project-agent'
+  | 'personal-agent'
+  | 'managed'
+  | 'bundled'
+  | 'extra-dir'
+  | 'plugin-provided';
+export type SkillResolutionStatus = 'visible' | 'shadowed' | 'filtered-out' | 'disabled';
+
+export interface SkillRootSnapshot {
+  id: string;
+  kind: SkillRootKind;
+  source: string;
+  precedence: number;
+  path?: string;
+  exists: boolean;
+  portability: SkillPortability;
+  skillKeys: string[];
+  notes: string[];
+}
+
+export interface SkillAllowlistSnapshot {
+  mode: 'unrestricted' | 'allowlist';
+  values: string[];
+  source: string;
+  portability: SkillPortability;
+  notes: string[];
+}
+
+export interface SkillEntryConfigSnapshot {
+  skillKey: string;
+  enabled?: boolean;
+  envKeys: string[];
+  apiKeySource?: 'env' | 'literal' | 'unknown';
+  portability: SkillPortability;
+  notes: string[];
+}
+
+export interface SkillOccurrenceSnapshot {
+  rootId: string;
+  rootKind: SkillRootKind;
+  path?: string;
+  portability: SkillPortability;
+}
+
+export interface SkillResolutionSnapshot {
+  skillKey: string;
+  status: SkillResolutionStatus;
+  portability: SkillPortability;
+  source?: SkillOccurrenceSnapshot;
+  shadowed: SkillOccurrenceSnapshot[];
+  notes: string[];
+}
+
 export interface SkillsManifest {
-  mode: 'manifest-only';
-  workspaceSkills: string[];
-  referencedSkills: string[];
+  mode: SkillsMode;
+  roots: SkillRootSnapshot[];
+  allowlist: SkillAllowlistSnapshot;
+  entries: SkillEntryConfigSnapshot[];
+  effectiveSkills: SkillResolutionSnapshot[];
   notes: string[];
 }
 
@@ -77,22 +136,20 @@ export interface AgentBindingDefinition {
   acp?: Record<string, unknown>;
 }
 
-/** All fields optional: clawpack transports cron definitions as-is from the source config without runtime validation. */
-export interface CronJobDefinition {
-  agentId?: string;
-  schedule?: string;
-  sessionTarget?: string;
-  payload?: Record<string, unknown>;
-  delivery?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 export interface ImportHints {
   requiredInputs: Array<{
     key: 'agentId' | 'targetWorkspacePath';
     reason: string;
   }>;
   warnings: string[];
+}
+
+export type CompatibilityLabel = 'official' | 'inferred' | 'manual' | 'unsupported';
+
+export interface CompatibilityEntry {
+  label: CompatibilityLabel;
+  message: string;
+  items?: string[];
 }
 
 export interface PackageManifest {
@@ -122,10 +179,8 @@ export interface PackageManifest {
     workspaceFiles: string[];
     bootstrapFiles?: string[];
     dailyMemory: boolean;
-    skills: 'manifest-only';
+    skills: SkillsMode;
     agentDefinition: boolean;
-    bindings?: boolean;
-    cronJobs?: boolean;
     runtimeMode?: RuntimeMode;
     runtimeFiles?: string[];
   };
@@ -139,6 +194,7 @@ export interface PackageManifest {
   compatibility: {
     minFormatVersion: number;
     notes: string[];
+    labels?: CompatibilityEntry[];
   };
 }
 
@@ -151,6 +207,7 @@ export interface ExportReport {
   warnings: string[];
   skills: SkillsManifest;
   runtime?: RuntimeManifest;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface ExportArtifacts {
@@ -183,8 +240,7 @@ export interface ReadPackageResult {
     relativePath: string;
     absolutePath: string;
   }>;
-  bindings?: AgentBindingDefinition[];
-  cronJobs?: CronJobDefinition[];
+  bindingHints?: AgentBindingDefinition[];
   runtimeManifest?: RuntimeManifest;
 }
 
@@ -269,18 +325,27 @@ export interface ValidationReport {
   warnings: string[];
   failed: string[];
   nextSteps: string[];
+  compatibility?: CompatibilityEntry[];
 }
 
 export type RuntimeMode = 'none' | 'default' | 'full';
+
+export interface RuntimeArtifactBuckets {
+  grounded: string[];
+  inferred: string[];
+  unsupported: string[];
+}
 
 export interface RuntimeScanResult {
   mode: RuntimeMode;
   agentDir: string;
   includedFiles: Array<{ relativePath: string; absolutePath: string }>;
   excludedFiles: ExcludedWorkspaceFile[];
+  artifacts: RuntimeArtifactBuckets;
   warnings: string[];
   sanitizedModels: Record<string, unknown> | undefined;
   settingsAnalysis: SettingsAnalysis | undefined;
+  compatibility?: CompatibilityEntry[];
 }
 
 export interface RuntimeManifest {
@@ -288,10 +353,12 @@ export interface RuntimeManifest {
   agentDir: string;
   includedFiles: string[];
   excludedFiles: ExcludedWorkspaceFile[];
+  artifacts: RuntimeArtifactBuckets;
   warnings: string[];
   modelsSanitized: boolean;
   modelsSkipped: boolean;
   settingsAnalysisIncluded: boolean;
+  compatibility?: CompatibilityEntry[];
 }
 
 export type SettingsPathClassification =

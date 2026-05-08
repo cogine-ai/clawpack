@@ -7,7 +7,6 @@ import { MIN_READABLE_FORMAT_VERSION, PACKAGE_FORMAT_VERSION, PACKAGE_TYPE } fro
 import type {
   AgentBindingDefinition,
   AgentDefinition,
-  CronJobDefinition,
   ExportReport,
   ImportHints,
   PackageManifest,
@@ -84,8 +83,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
   }
 
   manifest.includes.bootstrapFiles ??= [];
-  manifest.includes.bindings ??= false;
-  manifest.includes.cronJobs ??= false;
+  delete (manifest.includes as { cronJobs?: unknown }).cronJobs;
   manifest.excludes.connectionState ??= false;
 
   const agentDefinition = await readJsonFile<AgentDefinition>(
@@ -116,22 +114,9 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     absolutePath: path.join(resolvedRoot, 'workspace', relativePath),
   }));
 
-  const bindingsPath = path.join(resolvedRoot, 'config', 'bindings.json');
-  const cronPath = path.join(resolvedRoot, 'config', 'cron.json');
+  const bindingHintsPath = path.join(resolvedRoot, 'meta', 'binding-hints.json');
 
-  let bindings: AgentBindingDefinition[] | undefined;
-  if (manifest.includes.bindings) {
-    bindings = await readJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  } else {
-    bindings = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingsPath);
-  }
-
-  let cronJobs: CronJobDefinition[] | undefined;
-  if (manifest.includes.cronJobs) {
-    cronJobs = await readJsonFile<CronJobDefinition[]>(cronPath);
-  } else {
-    cronJobs = await readOptionalJsonFile<CronJobDefinition[]>(cronPath);
-  }
+  const bindingHints = await readOptionalJsonFile<AgentBindingDefinition[]>(bindingHintsPath);
 
   const runtimeManifestPath = path.join(resolvedRoot, 'runtime', 'manifest.json');
   const runtimeManifest = await readOptionalJsonFile<RuntimeManifest>(runtimeManifestPath);
@@ -145,8 +130,7 @@ export async function readPackageDirectory(packageRoot: string): Promise<ReadPac
     checksums,
     exportReport,
     workspaceFiles,
-    bindings,
-    cronJobs,
+    bindingHints,
     runtimeManifest,
   };
 }

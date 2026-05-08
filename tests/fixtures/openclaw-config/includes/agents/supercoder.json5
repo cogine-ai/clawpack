@@ -1,0 +1,8 @@
+{
+  $include: "../shared/agent-common.json5",
+  id: "supercoder",
+  name: "Supercoder",
+  model: {
+    default: "openai-codex/gpt-5.4",
+  },
+}

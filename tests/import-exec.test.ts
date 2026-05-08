@@ -193,3 +193,41 @@ test('Without targetConfigPath - config is not written, metadataFiles does not c
   assert.ok(result.metadataFiles.some((f) => f.includes('agent-definition.json')));
   assert.ok(result.metadataFiles.some((f) => f.includes('import-result.json')));
 });
+
+test('binding hints metadata is copied into import metadata directory when present', async () => {
+  const pkgRoot = path.join(tmpBase, 'binding-hints', 'fixture.ocpkg');
+  const targetWorkspace = path.join(tmpBase, 'binding-hints', 'target');
+  const bindingHints = [
+    {
+      agentId: 'binding-hints-agent',
+      type: 'route',
+      match: {
+        channel: 'slack',
+        accountId: '*',
+      },
+    },
+  ];
+
+  const pkg = await buildTestPackage(fixtureWorkspace, pkgRoot, {
+    packageName: 'binding-hints-pkg',
+    agentId: 'binding-hints-agent',
+    bindingHints,
+  });
+
+  const plan = (await planImport({
+    pkg,
+    targetWorkspacePath: targetWorkspace,
+    targetAgentId: 'binding-hints-agent',
+  })) as ExecutableImportPlan;
+
+  const result = await executeImport({ pkg, plan });
+  const bindingHintsPath = path.join(
+    targetWorkspace,
+    '.openclaw-agent-package',
+    'binding-hints.json',
+  );
+
+  const stored = JSON.parse(await readFile(bindingHintsPath, 'utf8'));
+  assert.deepEqual(stored, bindingHints);
+  assert.ok(result.metadataFiles.some((file) => file.endsWith('binding-hints.json')));
+});

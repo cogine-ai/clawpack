@@ -222,6 +222,39 @@ test('Validate detects agentDir mismatch in config', async () => {
   assert.ok(report.failed.some((f) => f.includes('agentDir mismatch')));
 });
 
+test('Validate does not report missing agentDir field when the config agent is missing', async () => {
+  const dir = 'missing-agent-config';
+  await cleanup(dir);
+  const { targetWorkspace, targetAgentDir, configPath } = await importWithRuntime(dir);
+
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        agents: {
+          list: [{ id: 'someone-else', workspace: targetWorkspace, agentDir: targetAgentDir }],
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const report = await validateImportedWorkspace({
+    targetWorkspacePath: targetWorkspace,
+    agentId: 'rt-val',
+    targetAgentDir,
+    targetConfigPath: configPath,
+  });
+
+  assert.ok(report.failed.some((f) => f.includes('OpenClaw config agent missing: rt-val')));
+  assert.equal(
+    report.failed.some((f) => f.includes('missing agentDir field')),
+    false,
+  );
+});
+
 test('Validate warns about auth files if they exist', async () => {
   const dir = 'auth-warning';
   await cleanup(dir);

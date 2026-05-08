@@ -27,7 +27,7 @@ test('CLI help and README use clawpacker branding', async () => {
   assert.match(readme, /^# Clawpacker/m);
   assert.match(readme, /\bclawpacker\b/);
   assert.doesNotMatch(readme, /\bClawport\b/);
-  assert.doesNotMatch(readme, /openclaw-agent-package/);
+  assert.match(readme, /\.openclaw-agent-package\/binding-hints\.json/);
 
   const cliSource = await readFile(path.join(projectRoot, 'src/cli.ts'), 'utf8');
   assert.match(cliSource, /\.name\('clawpacker'\)/);

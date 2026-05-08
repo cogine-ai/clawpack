@@ -155,7 +155,7 @@ test('archive roundtrip: export --archive -> import -> validate succeeds', async
 
   const report = JSON.parse(stdout);
   assert.equal(report.failed.length, 0, 'validation should have no failures');
-  assert.ok(report.warnings.some((w: string) => w.includes('Skills are manifest-only')));
+  assert.ok(report.warnings.some((w: string) => w.includes('Skill topology is snapshot-only')));
 
   assert.equal(
     existsSync(path.join(archiveImportTarget, 'AGENTS.md')),

@@ -2,8 +2,18 @@ import path from 'node:path';
 import { pathExists } from '../utils/fs';
 import { readJsonFile } from '../utils/json';
 import { checksumFile } from './checksums';
-import { REQUIRED_WORKSPACE_FILES } from './constants';
-import { loadOpenClawConfig, resolveAgentFromConfig } from './openclaw-config';
+import {
+  buildManualCompatibility,
+  buildUnsupportedCompatibility,
+  mergeCompatibilityEntries,
+} from './compatibility';
+import { OPTIONAL_WORKSPACE_FILES, REQUIRED_WORKSPACE_FILES } from './constants';
+import {
+  loadOpenClawConfig,
+  resolveAgentFromConfig,
+  resolveEffectiveAgentDir,
+  resolveEffectiveWorkspace,
+} from './openclaw-config';
 import type { ValidationReport } from './types';
 
 const AUTH_FILES = ['auth.json', 'auth-profiles.json'];
@@ -31,6 +41,7 @@ export async function validateImportedWorkspace(params: {
     report.passed.push(`Workspace exists: ${targetWorkspacePath}`);
   } else {
     report.failed.push(`Workspace is missing: ${targetWorkspacePath}`);
+    assignCompatibility(report);
     return report;
   }
 
@@ -39,6 +50,12 @@ export async function validateImportedWorkspace(params: {
       report.passed.push(`Workspace file present: ${file}`);
     } else {
       report.failed.push(`Missing required workspace file: ${file}`);
+    }
+  }
+
+  for (const file of OPTIONAL_WORKSPACE_FILES) {
+    if (await pathExists(path.join(targetWorkspacePath, file))) {
+      report.passed.push(`Optional workspace file present: ${file}`);
     }
   }
 
@@ -97,11 +114,7 @@ export async function validateImportedWorkspace(params: {
         );
       } else {
         report.passed.push(`OpenClaw config agent present: ${params.agentId} (${configPath})`);
-        const resolvedConfigWorkspace = resolved.agent.workspace
-          ? path.isAbsolute(resolved.agent.workspace)
-            ? path.resolve(resolved.agent.workspace)
-            : path.resolve(path.dirname(configPath), resolved.agent.workspace)
-          : undefined;
+        const resolvedConfigWorkspace = resolveEffectiveWorkspace(config, configPath, params.agentId);
         if (!resolvedConfigWorkspace) {
           report.failed.push(
             `OpenClaw config agent workspace missing: ${params.agentId} (${configPath})`,
@@ -135,14 +148,17 @@ export async function validateImportedWorkspace(params: {
     });
   }
 
-  report.warnings.push('Skills are manifest-only and may require manual installation.');
+  report.warnings.push(
+    'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+  );
   report.nextSteps.push(
-    'This clawpacker version does not restore live bindings or scheduled jobs; reconfigure any channel routing and cron entries manually on the target instance.',
+    'This clawpacker version does not restore live bindings or scheduled jobs; review meta/binding-hints.json if present and reconfigure any channel routing and cron entries manually on the target instance.',
   );
   report.nextSteps.push('Run `openclaw doctor` and manually verify provider/model availability after import.');
   report.nextSteps.push(
-    'Review imported USER.md, TOOLS.md, and MEMORY.md for target-specific adjustments.',
+    'Review imported USER.md and TOOLS.md, plus MEMORY.md if present, for target-specific adjustments.',
   );
+  assignCompatibility(report);
 
   return report;
 }
@@ -172,20 +188,19 @@ async function validateRuntimeLayer(
         configPath: params.targetConfigPath,
       });
       const resolved = resolveAgentFromConfig(config, params.agentId);
-      if (resolved?.agent.agentDir) {
-        const configAgentDir = path.isAbsolute(resolved.agent.agentDir)
-          ? resolved.agent.agentDir
-          : path.resolve(path.dirname(configPath), resolved.agent.agentDir);
-
+      if (resolved) {
+        const configAgentDir = resolveEffectiveAgentDir(config, configPath, params.agentId);
         if (configAgentDir === targetAgentDir) {
           report.passed.push(`OpenClaw config agentDir matches target: ${configAgentDir}`);
-        } else {
+        } else if (configAgentDir) {
           report.failed.push(
             `OpenClaw config agentDir mismatch: expected ${targetAgentDir}, got ${configAgentDir}`,
           );
+        } else {
+          report.failed.push(
+            `OpenClaw config agent ${params.agentId} is missing agentDir field.`,
+          );
         }
-      } else {
-        report.failed.push(`OpenClaw config agent ${params.agentId} is missing agentDir field.`);
       }
     } catch {
       report.warnings.push('Could not validate agentDir against OpenClaw config.');
@@ -332,4 +347,17 @@ function getExpectedFilesFromChecksums(
     .filter((key) => key.startsWith(keyPrefix))
     .map((key) => key.slice(keyPrefix.length))
     .sort((a, b) => a.localeCompare(b));
+}
+
+function assignCompatibility(report: ValidationReport): void {
+  report.compatibility = mergeCompatibilityEntries(
+    buildUnsupportedCompatibility([
+      'Skill implementations are manifest-only and are not restored by validation.',
+      'Live bindings and scheduled jobs are not restored by clawpacker.',
+    ]),
+    buildManualCompatibility([
+      ...report.warnings,
+      ...report.nextSteps,
+    ]),
+  );
 }

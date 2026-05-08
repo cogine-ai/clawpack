@@ -1,0 +1,8 @@
+{
+  identity: {
+    name: "Nested Identity",
+  },
+  tools: {
+    profile: "strict",
+  },
+}

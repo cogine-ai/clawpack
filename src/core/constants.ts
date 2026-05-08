@@ -9,10 +9,17 @@ export const REQUIRED_WORKSPACE_FILES = [
   'IDENTITY.md',
   'USER.md',
   'TOOLS.md',
-  'MEMORY.md',
 ] as const;
 
-export const BOOTSTRAP_FILES = new Set([
+export const OPTIONAL_WORKSPACE_FILES = [
+  'BOOT.md',
+  'BOOTSTRAP.md',
+  'HEARTBEAT.md',
+  'MEMORY.md',
+  'memory.md',
+] as const;
+
+export const OPENCLAW_BOOTSTRAP_FILES = new Set([
   'AGENTS.md',
   'SOUL.md',
   'TOOLS.md',
@@ -39,27 +46,33 @@ export interface ExclusionPattern {
 export const EXCLUDED_PATTERNS: ExclusionPattern[] = [
   {
     test: (relativePath) => /^memory\/.*\.md$/.test(relativePath),
-    reason: 'Excluded by daily memory policy',
+    reason: 'Excluded by clawpack default policy: daily memory logs are not exported by default',
   },
 ];
 
-export const SKILLS_MODE = 'manifest-only' as const;
+export const SKILLS_MODE = 'topology-snapshot' as const;
 
-export const SKILL_REFERENCE_PATTERNS = [
-  /\b(?:use|using|install|activate|invok(?:e|ing)|requires?)\s+(?:the\s+)?skill\s+`([a-z0-9][a-z0-9-]*)`/gi,
-  /skills?\/[A-Za-z0-9._-]+\/([a-z0-9][a-z0-9-]*)\b/gi,
-  /<name>([a-z0-9][a-z0-9-]*)<\/name>/gi,
-];
+export const SKILL_ROOT_PRECEDENCE = {
+  workspace: 70,
+  projectAgent: 60,
+  personalAgent: 50,
+  managed: 40,
+  bundled: 30,
+  extraDir: 20,
+  pluginProvided: 20,
+} as const;
 
-export const RUNTIME_ALLOWLIST_DEFAULT: string[] = [
-  'AGENTS.md',
-  'settings.json',
-  'prompts/**',
-  'themes/**',
+export const RUNTIME_GROUNDED_ARTIFACTS: string[] = [
   'models.json',
 ];
 
-export const RUNTIME_ALLOWLIST_FULL_EXTRA: string[] = [
+export const RUNTIME_INFERRED_ARTIFACTS: string[] = [
+  'settings.json',
+  'prompts/**',
+  'themes/**',
+];
+
+export const RUNTIME_UNSUPPORTED_ARTIFACTS: string[] = [
   'skills/**',
   'extensions/**',
 ];

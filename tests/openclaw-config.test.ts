@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  detectBindingHints,
   discoverOpenClawConfig,
   extractPortableAgentDefinition,
   hasAgentInConfig,
@@ -16,6 +17,7 @@ import { runCli } from './helpers/run-cli';
 
 const fixtureConfig = path.resolve('tests/fixtures/openclaw-config/source-config.jsonc');
 const fixtureWorkspace = path.resolve('tests/fixtures/source-workspace');
+const includeFixtureConfig = path.resolve('tests/fixtures/openclaw-config/includes/root.json');
 const inspectTarget = path.resolve('tests/tmp/inspect-output.json');
 const importTargetRoot = path.resolve('tests/tmp/config-import-target');
 const importWorkspace = path.join(importTargetRoot, 'workspace-supercoder-imported');
@@ -40,8 +42,10 @@ test('discoverOpenClawConfig resolves explicit configPath', async () => {
 test('discoverOpenClawConfig respects OPENCLAW_CONFIG_PATH env var', async () => {
   const configPath = await writeJsoncFixture('env-var-config.json', '{}');
   const original = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
   try {
     process.env.OPENCLAW_CONFIG_PATH = configPath;
+    process.env.OPENCLAW_STATE_DIR = path.join(parserFixtureRoot, 'ignored-state-dir');
     const discovered = await discoverOpenClawConfig();
     assert.equal(discovered.configPath, configPath);
   } finally {
@@ -49,6 +53,12 @@ test('discoverOpenClawConfig respects OPENCLAW_CONFIG_PATH env var', async () =>
       delete process.env.OPENCLAW_CONFIG_PATH;
     } else {
       process.env.OPENCLAW_CONFIG_PATH = original;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
     }
   }
 });
@@ -82,26 +92,73 @@ test('discoverOpenClawConfig throws when no config found', async () => {
   }
 });
 
-test('discoverOpenClawConfig discovers nearby config from cwd', async () => {
-  const instanceRoot = path.join(parserFixtureRoot, 'nearby-instance');
-  const workspaceRoot = path.join(instanceRoot, 'workspaces', 'workspace-demo');
-  const configPath = path.join(instanceRoot, '.openclaw', 'openclaw.json');
+test('discoverOpenClawConfig resolves config from OPENCLAW_STATE_DIR and falls back to legacy filename', async () => {
+  const stateDir = path.join(parserFixtureRoot, 'state-dir-override');
+  const legacyConfigPath = path.join(stateDir, 'clawdbot.json');
 
-  await rm(instanceRoot, { recursive: true, force: true });
-  await mkdir(workspaceRoot, { recursive: true });
-  await mkdir(path.dirname(configPath), { recursive: true });
-  await writeFile(configPath, '{}', 'utf8');
+  await rm(stateDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(legacyConfigPath, '{}', 'utf8');
 
-  const original = process.env.OPENCLAW_CONFIG_PATH;
+  const originalConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
   try {
     delete process.env.OPENCLAW_CONFIG_PATH;
-    const discovered = await discoverOpenClawConfig({ cwd: workspaceRoot });
-    assert.equal(discovered.configPath, configPath);
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+
+    const discovered = await discoverOpenClawConfig();
+    assert.equal(discovered.configPath, legacyConfigPath);
   } finally {
-    if (original === undefined) {
+    if (originalConfigPath === undefined) {
       delete process.env.OPENCLAW_CONFIG_PATH;
     } else {
-      process.env.OPENCLAW_CONFIG_PATH = original;
+      process.env.OPENCLAW_CONFIG_PATH = originalConfigPath;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
+  }
+});
+
+test('discoverOpenClawConfig falls back to the legacy state dir when canonical state dir is absent', async () => {
+  const fakeHome = path.join(parserFixtureRoot, 'legacy-home');
+  const legacyDir = path.join(fakeHome, '.clawdbot');
+  const legacyConfigPath = path.join(legacyDir, 'clawdbot.json');
+
+  await rm(fakeHome, { recursive: true, force: true });
+  await mkdir(legacyDir, { recursive: true });
+  await writeFile(legacyConfigPath, '{}', 'utf8');
+
+  const originalConfigPath = process.env.OPENCLAW_CONFIG_PATH;
+  const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+  const originalHome = process.env.HOME;
+  try {
+    delete process.env.OPENCLAW_CONFIG_PATH;
+    delete process.env.OPENCLAW_STATE_DIR;
+    process.env.HOME = fakeHome;
+
+    const discovered = await discoverOpenClawConfig();
+    assert.equal(discovered.configPath, legacyConfigPath);
+  } finally {
+    if (originalConfigPath === undefined) {
+      delete process.env.OPENCLAW_CONFIG_PATH;
+    } else {
+      process.env.OPENCLAW_CONFIG_PATH = originalConfigPath;
+    }
+
+    if (originalStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
+
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
     }
   }
 });
@@ -134,6 +191,48 @@ test('loadOpenClawConfig parses single-agent format', async () => {
   const loaded = await loadOpenClawConfig({ configPath });
   assert.ok(loaded.config.agent, 'agent field should exist');
   assert.equal(loaded.config.agent.name, 'Solo Agent');
+});
+
+test('loadOpenClawConfig parses JSON5 and resolves nested includes relative to each included file', async () => {
+  const loaded = await loadOpenClawConfig({ configPath: includeFixtureConfig });
+  const agent = loaded.config.agents?.list?.find((entry) => entry.id === 'supercoder');
+
+  assert.equal(loaded.config.openclawVersion, '2026.4.9');
+  assert.equal(loaded.config.runtime?.transport, 'stdio');
+  assert.deepEqual(loaded.config.tags, ['base', 'root']);
+  assert.equal(agent?.name, 'Supercoder');
+  assert.equal(agent?.identity?.name, 'Nested Identity');
+  assert.equal(agent?.tools?.profile, 'strict');
+  assert.equal(agent?.workspace, './workspaces/source-workspace');
+  assert.equal(agent?.model?.default, 'openai-codex/gpt-5.4');
+});
+
+test('detectBindingHints surfaces include-read failures instead of treating them as missing config', async () => {
+  const rootDir = path.join(parserFixtureRoot, 'binding-hints-missing-include');
+  const configPath = path.join(rootDir, 'openclaw.json');
+
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      $include: './missing-child.json',
+      agent: {
+        id: 'solo',
+        name: 'Solo Agent',
+        workspace: '/tmp/solo-workspace',
+      },
+    }),
+    'utf8',
+  );
+
+  await assert.rejects(
+    detectBindingHints({
+      configPath,
+      workspacePath: '/tmp/solo-workspace',
+    }),
+    { code: 'ENOENT' },
+  );
 });
 
 // --- resolveAgentFromConfig ---
@@ -196,6 +295,25 @@ test('resolveAgentFromConfig falls back to first list entry when no default', ()
   const result = resolveAgentFromConfig(config);
   assert.ok(result);
   assert.equal(result.resolvedId, 'only');
+});
+
+test('resolveAgentFromConfig prefers agents.list over legacy top-level agent when both exist', () => {
+  const config: MinimalOpenClawConfig = {
+    agent: { id: 'legacy', name: 'Legacy', workspace: '/legacy-workspace' },
+    agents: {
+      list: [
+        { id: 'alpha', name: 'Alpha', workspace: '/tmp/alpha' },
+        { id: 'beta', name: 'Beta', workspace: '/tmp/beta', default: true },
+      ],
+    },
+  };
+
+  const selectedDefault = resolveAgentFromConfig(config);
+  assert.ok(selectedDefault);
+  assert.equal(selectedDefault.resolvedId, 'beta');
+
+  const selectedLegacy = resolveAgentFromConfig(config, 'legacy');
+  assert.equal(selectedLegacy, undefined);
 });
 
 test('resolveAgentDir matches the workspace agent when agentId is omitted', async () => {
@@ -284,6 +402,66 @@ test('resolveAgentDir prefers exact workspace path over basename-only match', as
   );
 });
 
+test('resolveAgentDir resolves nested workspace matches using the longest configured workspace root', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-longest-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          agentDir: './agents',
+        },
+        list: [
+          {
+            id: 'main',
+            default: true,
+          },
+          {
+            id: 'docs',
+            workspace: './workspaces/projects/docs',
+          },
+        ],
+      },
+    }),
+  );
+
+  const nestedDocsWorkspace = path.resolve(path.dirname(configPath), 'workspaces/projects/docs/subtree');
+  const resolved = await resolveAgentDir({
+    configPath,
+    workspacePath: nestedDocsWorkspace,
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(configPath), 'agents/docs/agent'),
+  );
+});
+
+test('resolveAgentDir derives agentDir from agents.defaults for non-default agents', async () => {
+  const configPath = await writeJsoncFixture(
+    'resolve-agent-dir-default-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          agentDir: './agent-data',
+        },
+        list: [{ id: 'main', default: true }, { id: 'nested-agent' }],
+      },
+    }),
+  );
+
+  const resolved = await resolveAgentDir({
+    configPath,
+    agentId: 'nested-agent',
+  });
+
+  assert.equal(
+    resolved,
+    path.resolve(path.dirname(configPath), 'agent-data/nested-agent/agent'),
+  );
+});
+
 // --- hasAgentInConfig ---
 
 test('hasAgentInConfig checks both single and list formats', () => {
@@ -317,6 +495,71 @@ test('extractPortableAgentDefinition extracts from agents.list fixture', async (
   assert.equal(portable.agent.model?.default, 'openai-codex/gpt-5.4');
   assert.ok(portable.notes.some((note) => note.includes('OpenClaw config')));
   assert.equal(portable.fieldClassification['agent.secrets'], 'excluded');
+});
+
+test('extractPortableAgentDefinition resolves agents.defaults workspace roots and portable defaults', async () => {
+  const configPath = await writeJsoncFixture(
+    'extract-defaults-workspace.json',
+    JSON.stringify({
+      identity: { name: 'Shared Identity' },
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+          model: { default: 'openai/gpt-5.4-mini' },
+          skills: ['brainstorming'],
+        },
+        list: [
+          { id: 'main', default: true, name: 'Main Agent' },
+          { id: 'nested-agent', name: 'Nested Agent' },
+        ],
+      },
+    }),
+  );
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  const workspacePath = path.resolve(path.dirname(configPath), 'workspaces/nested-agent');
+  const portable = extractPortableAgentDefinition({
+    config: loaded.config,
+    configPath,
+    workspacePath,
+  });
+
+  assert.equal(portable.agent.suggestedId, 'nested-agent');
+  assert.equal(portable.agent.suggestedName, 'Nested Agent');
+  assert.equal(portable.agent.identity.name, 'Shared Identity');
+  assert.equal(portable.agent.model?.default, 'openai/gpt-5.4-mini');
+  assert.deepEqual(portable.agent.skills, ['brainstorming']);
+  assert.ok(
+    portable.notes.some((note) => note.includes('defaults') && note.includes('agent.model')),
+  );
+});
+
+test('extractPortableAgentDefinition avoids basename collisions by preferring the longest workspace root match', async () => {
+  const configPath = await writeJsoncFixture(
+    'extract-longest-root.json',
+    JSON.stringify({
+      agents: {
+        defaults: {
+          workspace: './workspaces',
+        },
+        list: [
+          { id: 'main', default: true },
+          { id: 'docs', workspace: './workspaces/projects/docs' },
+          { id: 'other-docs', workspace: './elsewhere/docs' },
+        ],
+      },
+    }),
+  );
+
+  const loaded = await loadOpenClawConfig({ configPath });
+  const nestedWorkspace = path.resolve(path.dirname(configPath), 'workspaces/projects/docs/child');
+  const portable = extractPortableAgentDefinition({
+    config: loaded.config,
+    configPath,
+    workspacePath: nestedWorkspace,
+  });
+
+  assert.equal(portable.agent.suggestedId, 'docs');
 });
 
 test('extractPortableAgentDefinition extracts from single-agent config', async () => {
@@ -542,7 +785,7 @@ test('upsertPortableAgentDefinition converts single-agent to multi-agent on new 
   assert.equal(written.agents.list[1].id, 'supercoder-imported');
 });
 
-test('upsertPortableAgentDefinition updates single-agent in place when same id', async () => {
+test('upsertPortableAgentDefinition converts legacy single-agent config to agents.list even when updating the same id', async () => {
   await rm(importTargetRoot, { recursive: true, force: true });
   await mkdir(importTargetRoot, { recursive: true });
   await writeFile(
@@ -559,9 +802,12 @@ test('upsertPortableAgentDefinition updates single-agent in place when same id',
   });
 
   const written = JSON.parse(await readFile(importConfig, 'utf8'));
-  assert.ok(written.agent, 'should keep single-agent format');
-  assert.equal(written.agent.name, 'Supercoder Imported');
-  assert.equal(written.agent.workspace, importWorkspace);
+  assert.equal(written.agent, undefined, 'legacy top-level agent should be normalized away');
+  assert.ok(Array.isArray(written.agents?.list));
+  assert.equal(written.agents.list.length, 1);
+  assert.equal(written.agents.list[0].id, 'supercoder-imported');
+  assert.equal(written.agents.list[0].name, 'Supercoder Imported');
+  assert.equal(written.agents.list[0].workspace, importWorkspace);
 });
 
 test('upsertPortableAgentDefinition refuses duplicate without --force', async () => {
@@ -631,8 +877,10 @@ test('inspect command defaults to human-readable output and supports --json', as
   );
   assert.equal(report.portableConfig.found, true);
   assert.equal(report.portableConfig.agent.suggestedId, 'supercoder');
-  assert.deepEqual(report.skills.referencedSkills, ['brainstorming']);
-  assert.ok(report.warnings.some((warning: string) => warning.includes('Skills are manifest-only')));
+  assert.equal(report.skills.mode, 'topology-snapshot');
+  assert.ok(Array.isArray(report.skills.roots));
+  assert.ok(!report.warnings.some((warning: string) => warning.includes('Skill topology is snapshot-only')));
+  assert.ok(report.skills.notes.some((note: string) => note.includes('Skill topology is a source-backed snapshot')));
 });
 
 // --- CLI integration: export/import/validate with config ---

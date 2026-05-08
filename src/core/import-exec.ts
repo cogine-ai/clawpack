@@ -26,6 +26,7 @@ export async function executeImport(params: {
     'agent-definition.json',
   );
   const importRecordPath = path.join(params.plan.writePlan.metadataDirectory, 'import-result.json');
+  const bindingHintsPath = path.join(params.plan.writePlan.metadataDirectory, 'binding-hints.json');
 
   const configFiles: string[] = [];
   if (params.plan.writePlan.targetConfigPath) {
@@ -49,13 +50,19 @@ export async function executeImport(params: {
     targetAgentDir: params.plan.writePlan.runtimePlan?.targetAgentDir ?? null,
   });
 
+  const metadataFiles = [agentRecordPath, importRecordPath];
+  if (params.pkg.bindingHints && params.pkg.bindingHints.length > 0) {
+    await writeJsonFile(bindingHintsPath, params.pkg.bindingHints);
+    metadataFiles.push(bindingHintsPath);
+  }
+
   const targetAgentDir = params.plan.writePlan.runtimePlan?.targetAgentDir;
 
   const result: ImportResult = {
     status: 'ok',
     importedFiles: params.plan.writePlan.workspaceFiles.map((file) => file.relativePath),
     importedRuntimeFiles: runtimeImport.importedFiles,
-    metadataFiles: [agentRecordPath, importRecordPath, ...configFiles],
+    metadataFiles: [...metadataFiles, ...configFiles],
     warnings: params.plan.warnings,
     nextSteps: params.plan.nextSteps,
     targetWorkspacePath: params.plan.writePlan.targetWorkspacePath,

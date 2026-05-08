@@ -35,9 +35,19 @@ Do **not** treat it as a production-grade backup, archival, or disaster-recovery
 
 Clawpacker uses a **blacklist model** — it includes all files in the workspace (including subdirectories) except those matching explicit exclusion rules.
 
-The following files are recognized as **bootstrap files** and flagged in the manifest:
+The following top-level files are recognized by current OpenClaw docs as **bootstrap files** and are flagged in the manifest when present:
 
 `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
+
+`BOOT.md` is also a documented workspace file, but it is **not** treated as a bootstrap file. If present, clawpacker includes it as a normal workspace file.
+
+For validation purposes, clawpacker only requires the core workspace contract:
+
+`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`
+
+The following OpenClaw workspace files are treated as **optional** and their absence does not make a workspace invalid:
+
+`BOOT.md`, `BOOTSTRAP.md`, `HEARTBEAT.md`, `MEMORY.md`, `memory.md`, `memory/*.md`
 
 All other workspace files are included as well, preserving directory structure.
 
@@ -62,38 +72,62 @@ And these file patterns:
 
 - `memory/*.md` daily logs
 
+The `memory/*.md` exclusion is a **clawpacker product policy**, not an OpenClaw workspace requirement. It exists to keep exports conservative and portable by default.
+
 These rules only apply to contents **within** the scanned workspace directory. The parent `~/.openclaw/` installation and its config files are not part of the workspace scan — OpenClaw config is read separately via `--config` or config discovery.
 
 Beyond file-level exclusions, Clawpacker never exports or restores:
 
 - secrets, auth state, cookies, API keys, credentials
 - session/runtime state
-- live channel bindings / routing state
+- live routing bindings / routing state
 - live cron scheduling / scheduled-job registration
 - globally installed skills or extensions
 - machine-specific absolute-path behavior that is not portable
 
 ### Skills model
 
-Skills are **manifest-only** right now.
+Clawpacker records a **skills topology snapshot**.
 
-That means Clawpacker records detected skill references (using backtick-quoted references like `` `skill-name` ``), but it does not bundle or install skill implementations for you.
+That snapshot is source-backed:
+
+- visible skill roots and their precedence
+- the effective per-agent skill allowlist, when configured
+- `skills.entries.*` settings such as explicit enable/disable and env/API-key wiring
+- whether a visible skill state is `portable`, `host-bound`, `reinstall-required`, or `unsupported`
+
+Clawpacker still does **not** auto-install skills for you. Workspace-owned skill implementations can travel with the exported workspace; managed/shared/bundled/plugin-provided skills remain host-managed and require manual reinstall or reconfiguration on the target instance.
 
 ### Runtime layer (optional)
 
-In addition to workspace files, OpenClaw agents often have runtime configuration stored in a separate **agentDir** — things like `settings.json`, prompt templates, themes, and model definitions. Clawpacker can optionally package a portable slice of this runtime layer alongside the workspace.
+In addition to workspace files, OpenClaw agents often have runtime configuration stored in a separate **agentDir**. Clawpacker can optionally package a narrow, labeled slice of this runtime layer alongside the workspace.
 
 This is an **optional portability convenience**, not a full backup of the agent runtime directory.
+
+#### Runtime compatibility labels
+
+Clawpacker classifies detected runtime files and follow-up work with four compatibility labels:
+
+| Label | Meaning | Current examples |
+|-------|---------|------------------|
+| `official` | Source-backed and aligned with the current runtime contract | `models.json` |
+| `inferred` | Useful convenience files, but not a strong current OpenClaw portability contract | `settings.json`, `prompts/**`, `themes/**` |
+| `manual` | Requires explicit operator follow-up | reinstalling skills, reconfiguring bindings, reviewing inferred files |
+| `unsupported` | Not currently treated as canonical portable per-agent artifacts | `skills/**`, `extensions/**` |
+
+`inspect`, `export`, package metadata, and `validate` all surface these same labels so the tool makes a clean distinction between what is source-backed, what is inferred, what is unsupported, and what still needs operator action.
 
 #### The three modes
 
 | Mode | What gets packaged | When to use |
 |------|-------------------|-------------|
 | `none` | Nothing from agentDir | You only need workspace files |
-| `default` | `AGENTS.md`, `settings.json`, `prompts/**`, `themes/**`, `models.json` | Most agent transfers (recommended) |
-| `full` | Everything in `default`, plus `skills/**` and `extensions/**` | When the target instance needs locally installed skills or extensions |
+| `default` | Only `official` runtime artifacts | Honest default for portability checks and packaging |
+| `full` | `official` plus `inferred` runtime artifacts | When you intentionally want extra convenience files and understand they are not an official capability contract |
 
 Use `--runtime-mode <mode>` on `inspect` and `export`. When omitted, `inspect` defaults to `default`; `export` skips the runtime layer unless the flag is explicitly provided.
+
+`full` does **not** include `skills/**` or `extensions/**`. Those are reported as `unsupported`, not packaged.
 
 #### What is always excluded
 
@@ -119,6 +153,8 @@ If sanitization removes everything useful, the file is excluded entirely and a w
 
 #### settings.json path analysis
 
+`settings.json` is an `inferred` artifact, so this analysis runs only when `settings.json` is actually included, for example with `--runtime-mode full`.
+
 Clawpacker analyzes path-like values in `settings.json` and classifies them:
 
 | Classification | Meaning | On import |
@@ -137,7 +173,7 @@ When importing a package that includes a runtime layer:
 - If no target agentDir can be resolved, import **blocks** and tells you what is needed.
 - If runtime files already exist at the target agentDir, import **blocks** unless `--force` is passed. Only allowlisted runtime files are overwritten — auth and session files are never written.
 - If a target OpenClaw config is provided, the agent entry is upserted with the agentDir path.
-- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths.
+- `settings.json` paths referencing the source workspace or agentDir are automatically rewritten to the target paths when `settings.json` is present in the package.
 
 Use `--dry-run` to preview the full import plan (including runtime file list, path rewrites, and collision detection) before committing.
 
@@ -234,7 +270,7 @@ What `inspect` tells you:
 - whether a portable agent definition could be derived
 - which fields are portable vs import-time inputs
 - which skills were detected
-- runtime layer contents (when `--runtime-mode` is `default` or `full`)
+- compatibility labels grouped as `official`, `inferred`, `manual`, and `unsupported` (when `--runtime-mode` is `default` or `full`)
 - warnings you should expect on export/import
 
 ### 2) Export a package
@@ -282,8 +318,26 @@ Output defaults to human-readable text. Add `--json` for machine-readable output
   "packageRoot": ".../example-supercoder.ocpkg",
   "manifestPath": ".../example-supercoder.ocpkg/manifest.json",
   "fileCount": 12,
+  "skills": {
+    "mode": "topology-snapshot"
+  },
   "runtimeMode": "default",
-  "runtimeFiles": ["AGENTS.md", "settings.json", "prompts/system.md"]
+  "runtimeFiles": ["models.json"],
+  "runtimeOfficialFiles": ["models.json"],
+  "runtimeGroundedFiles": ["models.json"],
+  "runtimeInferredFiles": ["settings.json", "prompts/system.md"],
+  "runtimeUnsupportedFiles": ["skills/review/SKILL.md"],
+  "compatibility": [
+    {
+      "label": "official",
+      "message": "Source-backed runtime artifacts",
+      "items": ["models.json"]
+    },
+    {
+      "label": "manual",
+      "message": "Skills are manifest-only and may require manual installation."
+    }
+  ]
 }
 ```
 
@@ -400,7 +454,7 @@ Instead, it extracts a portable slice of agent config, including:
 
 And it explicitly excludes things like:
 
-- channel bindings
+- live routing bindings as portable config
 - secrets
 - provider/account-specific runtime state
 
@@ -411,7 +465,7 @@ Clawpacker is designed to be conservative.
 ### Export safety
 
 - all workspace files are included except explicitly excluded directories and patterns
-- daily memory logs (`memory/*.md`) are excluded by default
+- daily memory logs (`memory/*.md`) are excluded by default as a clawpacker portability policy
 - package contents are declared in a manifest instead of hidden in opaque state
 - checksums are generated for integrity verification
 - runtime layer is opt-in via `--runtime-mode`
@@ -433,13 +487,13 @@ Clawpacker is designed to be conservative.
 
 Even after a successful import, you should still:
 
-- review `USER.md`, `TOOLS.md`, and `MEMORY.md`
+- review `USER.md` and `TOOLS.md`, plus `MEMORY.md` if present
 - reinstall any required skills manually
-- reconfigure channel bindings and cron jobs manually
+- review imported binding hints metadata at `.openclaw-agent-package/binding-hints.json` after import, or `meta/binding-hints.json` in the source package before import, then reconfigure routing bindings and any scheduled jobs manually
 - run `openclaw doctor`
 - verify model/provider availability on the target instance
 
-Today, clawpacker does not restore live channel bindings or scheduled jobs. A future version may support portable placeholder-based representations for these areas, but that is different from raw instance-state migration.
+Today, clawpacker does not package or restore live OpenClaw top-level `bindings[]` entries or scheduled jobs. There is no `config/cron.json` portability contract in the package format. When source config is available, export may include matching routing entries as source-backed hints in `meta/binding-hints.json`, and import preserves those hints in `.openclaw-agent-package/binding-hints.json`; they remain metadata only and must be reapplied manually on the target instance.
 
 Clawpacker packages a portable workspace template plus an optional runtime slice. For full-instance moves or environment repair, follow the official OpenClaw migration flow rather than treating clawpacker as a complete instance backup.
 
@@ -466,29 +520,26 @@ supercoder-template.ocpkg/
     import-hints.json
     skills-manifest.json
   meta/
+    binding-hints.json      # optional source-backed routing hints; metadata only
     checksums.json
     export-report.json
   runtime/                  # present when --runtime-mode is default or full
     manifest.json
     checksums.json
     path-rewrites.json
-    settings-analysis.json  # present when settings.json was included
+    settings-analysis.json  # present when inferred settings.json was included
     files/
-      AGENTS.md
-      settings.json
       models.json           # sanitized — no API keys or secrets
-      prompts/
+      settings.json         # present only when inferred files are included
+      prompts/              # present only when inferred files are included
         system.md
-      themes/
+      themes/               # present only when inferred files are included
         dark.json
-      skills/               # present only in full mode
-        my-skill/
-          SKILL.md
 ```
 
 The `workspace/` directory mirrors the source workspace structure. All non-excluded files are included, so the contents vary depending on what lives in the source workspace.
 
-The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, and which files were included or excluded. The `files/` subdirectory contains the actual runtime files.
+The `runtime/` subtree is only present when `--runtime-mode default` or `--runtime-mode full` is used on export. Its `manifest.json` records the mode, source agentDir, compatibility labels, and which files were included or excluded. The `files/` subdirectory contains only the runtime files that the selected mode is allowed to package.
 
 Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
@@ -497,7 +548,7 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 - full OpenClaw instance backup (the runtime layer is a portable slice, not a full agentDir copy)
 - secret migration (API keys and auth tokens are stripped on export)
 - auth/session migration (auth files are always excluded)
-- raw channel binding export/import
+- automatic routing binding restore
 - raw cron export/import or scheduler registration
 - zero-touch import across mismatched environments
 
@@ -505,16 +556,17 @@ Packages can also be distributed as single-file `.ocpkg.tar.gz` archives.
 
 Near-term likely improvements:
 
-- richer import guidance when models or skills are missing
+- richer import guidance when models or inferred runtime files are missing
 - better package compatibility/version negotiation
 
 Current limitations to be aware of:
 
 - package format should still be treated as early-stage (currently v2)
-- skills are detected and optionally bundled via `--runtime-mode full`, but not auto-installed on import
+- the exported skills snapshot is descriptive, not an auto-installer; host-managed, bundled, extra-dir, and plugin-provided skills still require manual reinstall/reconfiguration
+- runtime `skills/**` and `extensions/**` are still classified as unsupported runtime artifacts and are not bundled
 - `--force` uses file-level replacement semantics — only files present in the package are overwritten; unrelated files in the target workspace are preserved
 - OpenClaw config support is minimal by design
-- runtime layer path rewriting only handles `settings.json` — other config files with embedded paths require manual update
+- runtime layer path rewriting only handles inferred `settings.json` — other config files with embedded paths require manual update
 
 ## Development
 

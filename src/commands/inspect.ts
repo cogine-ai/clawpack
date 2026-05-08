@@ -1,7 +1,13 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { resolveAgentDir } from '../core/openclaw-config';
+import {
+  buildManualCompatibility,
+  buildSkillsCompatibility,
+  mergeCompatibilityEntries,
+  renderCompatibilityLines,
+} from '../core/compatibility';
+import { detectBindingHints, resolveAgentDir } from '../core/openclaw-config';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
 import { detectSkills } from '../core/skills-detect';
@@ -24,15 +30,29 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   const runtimeMode = normalizeRuntimeMode(options.runtimeMode) ?? 'default';
   const workspacePath = path.resolve(options.workspace);
   const scan = await scanWorkspace(workspacePath);
-  const skills = await detectSkills(scan);
+  const skills = await detectSkills(scan, {
+    configPath: options.config,
+    agentId: options.agentId,
+  });
   const agentDefinition = await extractAgentDefinition(workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
   });
+  const bindingHints = await detectBindingHints({
+    configPath: options.config,
+    cwd: workspacePath,
+    agentId: options.agentId,
+    workspacePath,
+  });
 
-  const warnings = [
-    'Skills are manifest-only and may require manual installation.',
-  ];
+  const warnings: string[] = [];
+  const hasNonPortableVisibleSkills = skills.effectiveSkills
+    .some((skill) => skill.status === 'visible' && skill.portability !== 'portable');
+  if (hasNonPortableVisibleSkills) {
+    warnings.push(
+      'Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.',
+    );
+  }
 
   let runtimeResult: RuntimeScanResult | undefined;
   if (runtimeMode !== 'none') {
@@ -70,13 +90,29 @@ export async function runInspect(options: InspectOptions): Promise<void> {
       notes: agentDefinition.notes,
     },
     skills,
+    bindingHintsCount: bindingHints.length,
+    bindingHintsMetadataOnly: bindingHints.length > 0,
     runtime: runtimeResult ? {
       mode: runtimeResult.mode,
       agentDir: runtimeResult.agentDir,
       includedFiles: runtimeResult.includedFiles.map(f => f.relativePath),
       excludedFiles: runtimeResult.excludedFiles,
+      artifacts: runtimeResult.artifacts,
       warnings: runtimeResult.warnings,
+      compatibility: runtimeResult.compatibility,
     } : undefined,
+    compatibility: mergeCompatibilityEntries(
+      runtimeResult?.compatibility,
+      buildSkillsCompatibility(skills),
+      buildManualCompatibility(
+        [
+          ...warnings.filter((warning) => /agentDir/i.test(warning)),
+          ...(bindingHints.length > 0
+            ? ['Source-backed routing bindings are metadata only and must be reapplied manually on the target instance.']
+            : []),
+        ],
+      ),
+    ),
     warnings,
     errors: [],
   };
@@ -101,11 +137,14 @@ export async function runInspect(options: InspectOptions): Promise<void> {
     `  portable fields: ${Object.entries(report.portableConfig.fieldClassification)
       .map(([key, value]) => `${key}=${value}`)
       .join(', ')}`,
-    `Skills (workspace): ${skills.workspaceSkills.join(', ') || 'none'}`,
-    `Skills (referenced): ${skills.referencedSkills.join(', ') || 'none'}`,
+    `Skill allowlist: ${skills.allowlist.mode === 'allowlist' ? `${skills.allowlist.values.join(', ') || 'none'} [${skills.allowlist.source}]` : 'unrestricted'}`,
+    `Skill roots (${skills.roots.length}): ${skills.roots.map((root) => `${root.kind}${root.exists ? '' : ' (missing)'}`).join(', ') || 'none'}`,
+    `Visible skills (${skills.effectiveSkills.filter((skill) => skill.status === 'visible').length}): ${skills.effectiveSkills.filter((skill) => skill.status === 'visible').map((skill) => `${skill.skillKey} [${skill.portability}]`).join(', ') || 'none'}`,
     `Skill notes: ${skills.notes.join(' | ') || 'none'}`,
+    `Binding hints detected: ${bindingHints.length}${bindingHints.length > 0 ? ' (source-backed metadata only; manual reapply required)' : ''}`,
     `Warnings: ${warnings.join(' | ') || 'none'}`,
     `Runtime mode: ${report.runtimeMode}`,
+    ...renderCompatibilityLines(report.compatibility),
   ];
 
   if (report.portableConfig.notes.length > 0) {
@@ -113,8 +152,12 @@ export async function runInspect(options: InspectOptions): Promise<void> {
   }
 
   if (runtimeResult) {
+    lines.push('Runtime labels: official=source-backed, inferred=convenience-only, unsupported=not packaged');
     lines.push(`Runtime agentDir: ${runtimeResult.agentDir}`);
     lines.push(`Runtime included files (${runtimeResult.includedFiles.length}): ${runtimeResult.includedFiles.map(f => f.relativePath).join(', ') || 'none'}`);
+    lines.push(`Runtime official files (${runtimeResult.artifacts.grounded.length}): ${runtimeResult.artifacts.grounded.join(', ') || 'none'}`);
+    lines.push(`Runtime inferred files (${runtimeResult.artifacts.inferred.length}): ${runtimeResult.artifacts.inferred.join(', ') || 'none'}`);
+    lines.push(`Runtime unsupported files (${runtimeResult.artifacts.unsupported.length}): ${runtimeResult.artifacts.unsupported.join(', ') || 'none'}`);
     lines.push(`Runtime excluded files (${runtimeResult.excludedFiles.length}): ${runtimeResult.excludedFiles.map(f => `${f.relativePath} [${f.reason}]`).join(', ') || 'none'}`);
     if (runtimeResult.warnings.length > 0) {
       lines.push(`Runtime warnings: ${runtimeResult.warnings.join(' | ')}`);
@@ -132,7 +175,7 @@ export function registerInspectCommand(command: Command): void {
     .option('--agent-id <id>', 'Source agent id override')
     .option(
       '--runtime-mode <mode>',
-      'Runtime layer mode: none (skip), default (settings, prompts, themes, models), or full (adds skills, extensions). Defaults to "default" when omitted. Auth and session files are always excluded.',
+      'Runtime layer mode: none (skip), default (official source-backed runtime artifacts only), or full (adds inferred convenience files). Unsupported skills/extensions are never packaged. Defaults to "default" when omitted. Auth and session files are always excluded.',
     )
     .option('--json', 'Emit the full machine-readable JSON report')
     .action(runInspect);

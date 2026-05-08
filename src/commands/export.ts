@@ -1,7 +1,13 @@
 import path from 'node:path';
 import type { Command } from 'commander';
 import { extractAgentDefinition } from '../core/agent-extract';
-import { detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
+import {
+  buildManualCompatibility,
+  buildSkillsCompatibility,
+  mergeCompatibilityEntries,
+  renderCompatibilityLines,
+} from '../core/compatibility';
+import { detectBindingHints, detectOpenClawVersion, resolveAgentDir } from '../core/openclaw-config';
 import { writePackageArchive, writePackageDirectory } from '../core/package-write';
 import { normalizeRuntimeMode } from '../core/runtime-mode';
 import { scanRuntime } from '../core/runtime-scan';
@@ -27,7 +33,10 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const runtimeMode = normalizeRuntimeMode(options.runtimeMode);
   const scan = await scanWorkspace(path.resolve(options.workspace));
-  const skills = await detectSkills(scan);
+  const skills = await detectSkills(scan, {
+    configPath: options.config,
+    agentId: options.agentId,
+  });
   const agentDefinition = await extractAgentDefinition(scan.workspacePath, {
     configPath: options.config,
     agentId: options.agentId,
@@ -35,6 +44,12 @@ export async function runExport(options: ExportOptions): Promise<void> {
   const openclawVersion = await detectOpenClawVersion({
     configPath: options.config,
     cwd: scan.workspacePath,
+  });
+  const bindingHints = await detectBindingHints({
+    configPath: options.config,
+    cwd: scan.workspacePath,
+    agentId: options.agentId,
+    workspacePath: scan.workspacePath,
   });
   const packageName =
     options.name ?? path.basename(options.out).replace(/\.ocpkg(\.tar\.gz)?$/, '');
@@ -68,6 +83,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     skills,
     agentDefinition,
     openclawVersion,
+    bindingHints,
     runtimeScan,
   };
 
@@ -80,8 +96,24 @@ export async function runExport(options: ExportOptions): Promise<void> {
     packageRoot: result.packageRoot,
     manifestPath: result.manifestPath,
     fileCount: result.fileCount,
+    skills,
     runtimeMode: runtimeScan?.mode,
     runtimeFiles: runtimeScan?.includedFiles.map(f => f.relativePath),
+    runtimeOfficialFiles: runtimeScan?.artifacts.grounded,
+    runtimeGroundedFiles: runtimeScan?.artifacts.grounded,
+    runtimeInferredFiles: runtimeScan?.artifacts.inferred,
+    runtimeUnsupportedFiles: runtimeScan?.artifacts.unsupported,
+    bindingHintsCount: bindingHints.length,
+    bindingHintsMetadataOnly: bindingHints.length > 0,
+    compatibility: mergeCompatibilityEntries(
+      runtimeScan?.compatibility,
+      buildSkillsCompatibility(skills),
+      buildManualCompatibility(
+        bindingHints.length > 0
+          ? ['Source-backed routing bindings are metadata only and must be reapplied manually on the target instance.']
+          : [],
+      ),
+    ),
   };
 
   if (options.json) {
@@ -94,10 +126,19 @@ export async function runExport(options: ExportOptions): Promise<void> {
     `  Package: ${report.packageRoot}`,
     `  Manifest: ${report.manifestPath}`,
     `  Files: ${report.fileCount}`,
+    `  Skills visible: ${skills.effectiveSkills.filter((skill) => skill.status === 'visible').map((skill) => `${skill.skillKey} [${skill.portability}]`).join(', ') || 'none'}`,
+    ...renderCompatibilityLines(report.compatibility),
   ];
   if (runtimeScan && runtimeScan.mode !== 'none') {
+    lines.push('  Runtime labels: official=source-backed, inferred=convenience-only, unsupported=not packaged');
     lines.push(`  Runtime mode: ${runtimeScan.mode}`);
     lines.push(`  Runtime files: ${runtimeScan.includedFiles.length}`);
+    lines.push(`  Runtime official files: ${runtimeScan.artifacts.grounded.length}`);
+    lines.push(`  Runtime inferred files: ${runtimeScan.artifacts.inferred.length}`);
+    lines.push(`  Runtime unsupported files: ${runtimeScan.artifacts.unsupported.length}`);
+  }
+  if (bindingHints.length > 0) {
+    lines.push(`  Binding hints: ${bindingHints.length} source-backed entries captured as metadata only; manual reapply required`);
   }
   console.log(lines.join('\n'));
 }
@@ -112,7 +153,7 @@ export function registerExportCommand(command: Command): void {
     .option('--agent-id <id>', 'Source agent id override')
     .option(
       '--runtime-mode <mode>',
-      'Runtime layer mode: none (skip), default (settings, prompts, themes, models), or full (adds skills, extensions). Requires a resolvable agentDir in OpenClaw config. Auth and session files are always excluded.',
+      'Runtime layer mode: none (skip), default (official source-backed runtime artifacts only), or full (adds inferred convenience files). Unsupported skills/extensions are never packaged. Requires a resolvable agentDir in OpenClaw config. Auth and session files are always excluded.',
     )
     .option('--archive', 'Produce a .ocpkg.tar.gz single-file archive')
     .option('--json', 'Emit the full machine-readable JSON report')

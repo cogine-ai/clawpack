@@ -23,7 +23,9 @@ test('Workspace does not exist - failed contains "Workspace is missing", returns
 
   assert.ok(report.failed.some((f) => f.includes('Workspace is missing')));
   assert.equal(report.passed.length, 0);
-  assert.ok(!report.warnings.some((w) => w.includes('Skills are manifest-only')));
+  assert.ok(Array.isArray(report.compatibility));
+  assert.ok(report.compatibility.some((entry) => entry.label === 'unsupported'));
+  assert.ok(!report.warnings.some((w) => w.includes('Skill topology is snapshot-only')));
 });
 
 test('Workspace exists with all required files + agent-definition.json - all passed', async () => {
@@ -92,6 +94,60 @@ test('Workspace complete but missing .openclaw-agent-package/agent-definition.js
 
     assert.ok(
       report.failed.some((f) => f.includes('Missing imported agent definition record')),
+    );
+  } finally {
+    await cleanupTempWorkspace(workspace);
+  }
+});
+
+test('Workspace missing optional OpenClaw files does not fail workspace contract validation', async () => {
+  const workspace = path.join(tmpBase, 'missing-optional-openclaw-files');
+  await createTempWorkspace(workspace, {
+    extraFiles: {
+      '.openclaw-agent-package/agent-definition.json': JSON.stringify({
+        agentId: 'test-agent',
+      }),
+      'BOOT.md': '# BOOT\n',
+    },
+  });
+
+  try {
+    await rm(path.join(workspace, 'MEMORY.md'), { force: true });
+    await rm(path.join(workspace, 'MEMORY.MD'), { force: true });
+
+    const report = await validateImportedWorkspace({
+      targetWorkspacePath: workspace,
+      agentId: 'test-agent',
+    });
+
+    assert.ok(
+      !report.failed.some((f) => f.includes('Missing required workspace file: MEMORY.md')),
+    );
+  } finally {
+    await cleanupTempWorkspace(workspace);
+  }
+});
+
+test('Workspace with lowercase memory.md fallback is treated as valid', async () => {
+  const workspace = path.join(tmpBase, 'lowercase-memory-fallback');
+  await createTempWorkspace(workspace, {
+    extraFiles: {
+      '.openclaw-agent-package/agent-definition.json': JSON.stringify({
+        agentId: 'test-agent',
+      }),
+      'memory.md': '# memory fallback\n',
+    },
+  });
+
+  try {
+    const report = await validateImportedWorkspace({
+      targetWorkspacePath: workspace,
+      agentId: 'test-agent',
+    });
+
+    assert.ok(report.passed.some((p) => p.includes('Optional workspace file present: memory.md')));
+    assert.ok(
+      !report.failed.some((f) => f.includes('Missing required workspace file: memory.md')),
     );
   } finally {
     await cleanupTempWorkspace(workspace);

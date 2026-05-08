@@ -1,9 +1,15 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { checksumText } from '../../src/core/checksums';
+import {
+  RUNTIME_GROUNDED_ARTIFACTS,
+  RUNTIME_INFERRED_ARTIFACTS,
+  RUNTIME_UNSUPPORTED_ARTIFACTS,
+} from '../../src/core/constants';
 import { readPackageDirectory } from '../../src/core/package-read';
 import type {
   ReadPackageResult,
+  RuntimeArtifactBuckets,
   RuntimeManifest,
   RuntimeMode,
   SettingsAnalysis,
@@ -16,6 +22,7 @@ interface RuntimePackageOptions {
   packageName?: string;
   runtimeMode?: RuntimeMode;
   settingsAnalysis?: SettingsAnalysis;
+  artifacts?: RuntimeArtifactBuckets;
 }
 
 /**
@@ -61,11 +68,14 @@ export async function buildRuntimeTestPackage(
     includedFiles.push(relPath);
   }
 
+  const artifacts = options.artifacts ?? classifyRuntimeArtifacts(mode === 'none' ? [] : includedFiles);
+
   const runtimeManifest: RuntimeManifest = {
     mode,
     agentDir: options.sourceAgentDir,
     includedFiles: mode === 'none' ? [] : includedFiles,
     excludedFiles: [],
+    artifacts,
     warnings: [],
     modelsSanitized: false,
     modelsSkipped: true,
@@ -106,9 +116,17 @@ export async function buildRuntimeTestPackage(
   };
 
   const skills = {
-    mode: 'manifest-only',
-    workspaceSkills: [],
-    referencedSkills: [],
+    mode: 'topology-snapshot',
+    roots: [],
+    allowlist: {
+      mode: 'unrestricted',
+      values: [],
+      source: 'none',
+      portability: 'host-bound',
+      notes: [],
+    },
+    entries: [],
+    effectiveSkills: [],
     notes: [],
   };
 
@@ -116,7 +134,7 @@ export async function buildRuntimeTestPackage(
     requiredInputs: [
       { key: 'agentId', reason: 'Target instance may already contain the source agent id.' },
     ],
-    warnings: ['Skills are manifest-only and may require manual installation.'],
+    warnings: ['Skill topology is snapshot-only; host-bound and reinstall-required skills must be reinstalled or reconfigured on the target host.'],
   };
 
   const manifest = {
@@ -132,10 +150,8 @@ export async function buildRuntimeTestPackage(
       workspaceFiles,
       bootstrapFiles: workspaceFiles,
       dailyMemory: false,
-      skills: 'manifest-only',
+      skills: 'topology-snapshot',
       agentDefinition: true,
-      bindings: false,
-      cronJobs: false,
       runtimeMode: mode,
       runtimeFiles: mode !== 'none' ? includedFiles : [],
     },
@@ -185,4 +201,50 @@ export async function buildRuntimeTestPackage(
   await writeFile(path.join(outputPath, 'manifest.json'), `${manifestJson}\n`, 'utf8');
 
   return readPackageDirectory(outputPath);
+}
+
+function classifyRuntimeArtifacts(includedFiles: string[]): RuntimeArtifactBuckets {
+  const artifacts: RuntimeArtifactBuckets = {
+    grounded: [],
+    inferred: [],
+    unsupported: [],
+  };
+
+  for (const relativePath of includedFiles) {
+    if (matchesPattern(relativePath, RUNTIME_GROUNDED_ARTIFACTS)) {
+      artifacts.grounded.push(relativePath);
+      continue;
+    }
+    if (matchesPattern(relativePath, RUNTIME_INFERRED_ARTIFACTS)) {
+      artifacts.inferred.push(relativePath);
+      continue;
+    }
+    if (matchesPattern(relativePath, RUNTIME_UNSUPPORTED_ARTIFACTS)) {
+      artifacts.unsupported.push(relativePath);
+    }
+  }
+
+  return {
+    grounded: artifacts.grounded.sort((left, right) => left.localeCompare(right)),
+    inferred: artifacts.inferred.sort((left, right) => left.localeCompare(right)),
+    unsupported: artifacts.unsupported.sort((left, right) => left.localeCompare(right)),
+  };
+}
+
+function matchesPattern(relativePath: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    if (pattern.endsWith('/**')) {
+      const prefix = pattern.slice(0, -3);
+      if (relativePath.startsWith(`${prefix}/`)) {
+        return true;
+      }
+      continue;
+    }
+
+    if (pattern === relativePath) {
+      return true;
+    }
+  }
+
+  return false;
 }
