@@ -133,3 +133,26 @@ Prefer work that improves one of these:
 - release reliability
 
 Be skeptical of work that mainly adds scope without improving those.
+
+## Cursor Cloud specific instructions
+
+This is a pure TypeScript CLI with no external services. Node.js >= 20 is the only system requirement.
+
+**Key commands** (see `package.json` scripts):
+
+| Task | Command |
+|------|---------|
+| Install deps | `npm install` |
+| Build | `npm run build` |
+| Lint | `npm run lint` |
+| Test | `npm test` |
+| Dev mode CLI | `npm run dev -- <args>` |
+| Built CLI | `node dist/cli.js <args>` |
+
+**Notes:**
+
+- `npm run lint` uses Biome (`@biomejs/biome`). The codebase currently has pre-existing lint warnings/errors; these are not introduced by your changes.
+- Tests use Node's built-in test runner via `tsx --test tests/*.test.ts`. All 205 tests should pass.
+- The smoke test path in the README ("Verifying the examples locally") exercises all four CLI commands: `inspect` → `export` → `import` → `validate`. Use `tests/fixtures/source-workspace` as the source workspace and `tests/tmp/` as the output directory.
+- `tests/tmp/` is gitignored and safe to use for ephemeral test output.
+- No Docker, databases, or background services are needed.
